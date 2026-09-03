@@ -572,3 +572,25 @@ opt-in.
 - **No packaging yet.** `npm start` runs it from source; there is no signed
   `.app`, no auto-launch, no notarization.
 - **No playlist UI.** Clips are whatever is in the media folder.
+
+---
+
+## Contributing
+
+The most useful contribution is an adapter for a tool this does not yet cover.
+You do not need to change this codebase to write one — the socket contract is
+public and stable: [`docs/ADAPTER-PROTOCOL.md`](docs/ADAPTER-PROTOCOL.md).
+
+If you do change the code: `npm test` must stay green, `npm run typecheck`
+clean, and anything touching `src/core/events.ts` has to keep the privacy
+invariant above intact — that file is the single choke point every byte from an
+adapter passes through.
+
+## Security
+
+Report vulnerabilities privately rather than in an issue. See
+[`SECURITY.md`](SECURITY.md).
+
+## License
+
+[MIT](LICENSE).

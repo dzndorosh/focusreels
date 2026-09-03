@@ -18,3 +18,8 @@ config/youtube-sources.test.json
 # Keep aggregate decisions visible when generated locally.
 !artifacts/bluesky-probe/summary.json
 !artifacts/editorial-feed/summary.json
+
+# macOS bundle output
+out/
+build/
+*.dmg
