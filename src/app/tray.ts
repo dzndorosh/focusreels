@@ -135,10 +135,15 @@ export class TrayController {
             (info.confidence === 'heuristic' ? ' (guess)' : ''),
           type: 'checkbox' as const,
           checked: info.enabled,
+          // Read settings fresh here rather than closing over `s`: a source can
+          // register (sourceRegistry.onRegister -> settings.update) after this
+          // menu was rendered but before the click, and `sources` is replaced
+          // wholesale (not deep-merged) on write — closing over the stale `s`
+          // would silently drop that newly registered source from settings.json.
           click: () =>
             this.set({
               sources: {
-                ...s.sources,
+                ...this.deps.settings.get().sources,
                 [info.source]: { enabled: !info.enabled, confidence: info.confidence },
               },
             }),
