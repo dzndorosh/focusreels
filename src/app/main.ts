@@ -22,6 +22,7 @@ import { OverlayWindow, type OverlayStatus } from './overlayWindow.js';
 import { SettingsStore } from './settings.js';
 import { TrayController } from './tray.js';
 import { CatalogProvider } from '../youtube/catalogProvider.js';
+import { catalogUrl } from '../youtube/catalogUrl.js';
 import { PlayerCoordinator } from './playerCoordinator.js';
 import { FEED_CHANNELS, parseBrokenVideoId, parseFeedback } from './feedIpc.js';
 
@@ -276,7 +277,7 @@ ipcMain.on('focusreels:audio', (_event, payload: unknown) => {
 
 app.whenReady().then(async () => {
   if (process.env.NODE_ENV === 'production' || !process.env.FOCUSREELS_E2E) {
-    void catalogProvider.refreshRemote(process.env.FOCUSREELS_REMOTE_CATALOG_URL);
+    void catalogProvider.refreshRemote(catalogUrl());
   }
   if (process.env.NODE_ENV !== 'production' && process.env.FOCUSREELS_E2E) {
     const socketPath = join(app.getPath('userData'), 'feed-e2e.sock');
