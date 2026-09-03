@@ -8,6 +8,7 @@
  */
 
 import { turnKey, type Outcome, type SourceId, type TurnEvent } from './events.js';
+import type { BlockReason, SourceVerdict } from './sourceRegistry.js';
 import {
   DEFAULT_MACHINE_CONFIG,
   TurnStateMachine,
@@ -18,20 +19,11 @@ import {
   type TurnState,
 } from './turnStateMachine.js';
 
-export interface RegistryConfig extends MachineConfig {
-  /** an IDE the user switched off never opens a turn at all */
-  enabledSources: Record<SourceId, boolean>;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface RegistryConfig extends MachineConfig {}
 
 export const DEFAULT_REGISTRY_CONFIG: RegistryConfig = {
   ...DEFAULT_MACHINE_CONFIG,
-  enabledSources: {
-    cursor: true,
-    'vscode-copilot': true,
-    jetbrains: true,
-    'claude-code': true,
-    demo: true,
-  },
 };
 
 /** Injected so tests can drive time by hand. */
@@ -72,6 +64,9 @@ export interface RegistryOptions {
   timers?: Timers;
   onVisibilityChange?: (visible: boolean) => void;
   onTurnChange?: (info: TurnInfo) => void;
+  /** may this source open turns? defaults to yes, so core tests stay simple */
+  admitSource?: (event: TurnEvent) => SourceVerdict;
+  onSourceBlocked?: (source: string, reason: BlockReason) => void;
 }
 
 export class TurnRegistry {
@@ -80,6 +75,8 @@ export class TurnRegistry {
   private readonly timers: Timers;
   private readonly onVisibilityChange: (visible: boolean) => void;
   private readonly onTurnChange: (info: TurnInfo) => void;
+  private readonly admitSource: (event: TurnEvent) => SourceVerdict;
+  private readonly onSourceBlocked: (source: string, reason: BlockReason) => void;
   private _visible = false;
 
   constructor(opts: RegistryOptions = {}) {
@@ -87,6 +84,8 @@ export class TurnRegistry {
     this.timers = opts.timers ?? systemTimers;
     this.onVisibilityChange = opts.onVisibilityChange ?? (() => {});
     this.onTurnChange = opts.onTurnChange ?? (() => {});
+    this.admitSource = opts.admitSource ?? (() => ({ allowed: true, reason: null }));
+    this.onSourceBlocked = opts.onSourceBlocked ?? (() => {});
   }
 
   get visible(): boolean {
@@ -119,23 +118,26 @@ export class TurnRegistry {
     const key = turnKey(event);
     let entry = this.entries.get(key);
 
+    // Admission runs on every event, so a source is registered and counted even
+    // when its first sighting is a close. A block stops a *new* turn, but never
+    // a close for a turn already on screen: switching a source off mid-turn
+    // must not strand the window.
+    const verdict = this.admitSource(event);
+    if (!verdict.allowed) {
+      this.onSourceBlocked(event.source, verdict.reason ?? 'disabled');
+      if (!entry) return;
+    }
+
     if (!entry) {
       // Only a start opens a turn. A stray progress/end for an unknown turn is
       // dropped here rather than creating a machine that can never be shown.
       if (event.event !== 'turn_started') return;
 
-      const cfg = this.getConfig();
-      if (!cfg.enabledSources[event.source]) return;
-
       entry = {
-        machine: new TurnStateMachine(key, {
-          showDelayMs: cfg.showDelayMs,
-          watchdogMs: cfg.watchdogMs,
-          hideMode: cfg.hideMode,
-        }),
+        machine: new TurnStateMachine(key, this.getConfig()),
         source: event.source,
         turnId: event.turn_id,
-        hideMode: cfg.hideMode,
+        hideMode: this.getConfig().hideMode,
         showHandle: null,
         watchdogHandle: null,
       };

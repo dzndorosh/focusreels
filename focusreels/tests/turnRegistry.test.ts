@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { sanitizeEvent, type SourceId, type TurnEvent } from '../src/core/events.js';
+import { sanitizeEvent, type TurnEvent } from '../src/core/events.js';
 import {
   DEFAULT_REGISTRY_CONFIG,
   TurnRegistry,
@@ -8,7 +8,7 @@ import {
 import { FakeTimers } from './fakeTimers.js';
 
 const ev = (
-  source: SourceId,
+  source: string,
   turn_id: string,
   event: string,
   outcome?: string,
@@ -90,13 +90,45 @@ describe('TurnRegistry', () => {
     expect(r.visible).toBe(true);
   });
 
-  it('ignores every source the user switched off', () => {
-    config = { ...config, enabledSources: { ...config.enabledSources, jetbrains: false } };
-    const r = build();
-    r.dispatch(ev('jetbrains', 't1', 'turn_started'));
-    timers.advance(5000);
-    expect(r.size).toBe(0);
+  it('never opens a turn for a source that is not allowed', () => {
+    const blocked: Array<[string, string]> = [];
+    const r = new TurnRegistry({
+      timers,
+      getConfig: () => config,
+      onVisibilityChange: (v) => visibility.push(v),
+      admitSource: (e) =>
+        e.source === 'chatgpt-app'
+          ? { allowed: false, reason: 'disabled' as const }
+          : { allowed: true, reason: null },
+      onSourceBlocked: (source, reason) => blocked.push([source, reason]),
+    });
+
+    r.dispatch(ev('chatgpt-app', 't1', 'turn_started'));
+    timers.advance(1000);
+
     expect(r.visible).toBe(false);
+    expect(r.size).toBe(0);
+    expect(blocked).toEqual([['chatgpt-app', 'disabled']]);
+  });
+
+  it('still closes a turn opened before the source was switched off', () => {
+    let allowed = true;
+    const r = new TurnRegistry({
+      timers,
+      getConfig: () => config,
+      onVisibilityChange: (v) => visibility.push(v),
+      admitSource: () => (allowed ? { allowed: true, reason: null } : { allowed: false, reason: 'disabled' as const }),
+    });
+
+    r.dispatch(ev('aider', 't1', 'turn_started'));
+    timers.advance(500);
+    expect(r.visible).toBe(true);
+
+    allowed = false; // the user unchecks the source mid-turn
+    r.dispatch(ev('aider', 't1', 'turn_ended', 'completed'));
+
+    expect(r.visible).toBe(false); // the window must not be stranded
+    expect(r.size).toBe(0);
   });
 
   it('drops an end or progress event for a turn it never opened', () => {
