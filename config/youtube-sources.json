@@ -1,0 +1,273 @@
+{
+  "schemaVersion": 1,
+  "maxVideoAgeDays": 30,
+  "catalogLimit": 500,
+  "sources": [
+    {
+      "channelId": "UCV03SRZXJEz-hchIAogeJOg",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCXZCJLdBC09xxGZ6gcdrc6A",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCa__kMdkhFJvXcx1WALJ3hg",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCMdMKb-6n35flPoeZQazFFA",
+      "category": "humor",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCMyOj6fhvKFMjxUCp3b_3gA",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCWOA1ZGywLbqmigxE4Qlvuw",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCrFfcsFcqaK-wsZoDy3gGkw",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCnmGIkw-KdI0W5siakKPKog",
+      "category": "humor",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCXPzNYnckscfk3Q8_4sMYkQ",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UC6VcWc1rAoWdBCM0JxrRQ3A",
+      "category": "gaming",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCRijo3ddMTht_IHyNSNXpNQ",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCblfuW_4rakIf2h6aqANefA",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCZgQl6BKdSbUuJTn5zqKWCQ",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UC0KAFLxIiaR_FFNYDL3utGw",
+      "category": "music_art",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCvz84_Q0BbvZThy75mbd-Dg",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCHnyfMqiRRG1u-2MsSQLbXA",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCEIwxahdLz7bap-VDs9h35A",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCY1kMZp36IQSyNx_9h4mpCg",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCdp4_l1vPmpN-gDbUwhaRUQ",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCsXVk37bltHxD1rDPwtNM8Q",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCUHW94eEFW7hkUMVaZz4eDg",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UC415bOPUcGSamy543abLmRA",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCFhXFikryT4aFcLkLw2LBLA",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCLA_DiR1FfKNvjuUpBHmylQ",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCBJycsmduvYEL83R_U4JriQ",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCMiJRAwDNSNzuYeN2uWa0pA",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCXuqSBlHAE6Xw-yeJA0Tunw",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCP7jMXSY2xbc3KCAE0MHQ-A",
+      "category": "technology",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UChBEbMKI1eCcejTtmI32UEw",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCfE5Cz44GlZVyoaYTHJbuZw",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCp68_FLety0O-n9QU6phsgw",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCp1AdynFojb-WMTFG6KTcsg",
+      "category": "music_art",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UC1Myj674wRVXB9I4c6Hm5zA",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCjmJDM5pRKbUlVIzDYYWb6g",
+      "category": "other",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UC-2Y8dQb0S6DtpxNgAKoJKA",
+      "category": "gaming",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCq8DICunczvLuJJq414110A",
+      "category": "humor",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCb8vrqP8Z7Oz9ZTYvUtjUHQ",
+      "category": "humor",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    },
+    {
+      "channelId": "UCh9IfI45mmk59eDvSWtuuhQ",
+      "category": "humor",
+      "weight": 1,
+      "enabled": true,
+      "maxVideos": 50
+    }
+  ]
+}

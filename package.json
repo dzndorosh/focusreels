@@ -1,0 +1,39 @@
+{
+  "name": "focusreels",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ambient vertical-video overlay that fills the wait while an IDE AI agent works.",
+  "main": "dist/app/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs && node scripts/check-no-key.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "npm run build && electron .",
+    "demo": "npm run build && node dist/cli/demo.js",
+    "emit": "node dist/cli/emit.js",
+    "ax:build": "swift build -c release --package-path adapters/ax",
+    "install:cursor": "bash adapters/cursor/install.sh",
+    "headless": "npm run build && node dist/cli/headless.js",
+    "icons": "node scripts/make-tray-icon.mjs",
+    "install:claude": "node adapters/claude-code/install.mjs",
+    "uninstall:claude": "node adapters/claude-code/install.mjs --uninstall",
+    "check:key": "node scripts/check-no-key.mjs",
+    "catalog:youtube:collect": "node --experimental-strip-types scripts/catalog-youtube-collect.ts",
+    "catalog:youtube:resolve-handles": "node --experimental-strip-types scripts/catalog-youtube-permanent.ts resolve && node --experimental-strip-types scripts/catalog-youtube-permanent.ts collect",
+    "catalog:youtube:permanent-candidates": "node --experimental-strip-types scripts/catalog-youtube-permanent.ts collect",
+    "catalog:youtube:auto-approve": "node --experimental-strip-types scripts/catalog-youtube-permanent.ts auto-approve",
+    "catalog:youtube:apply-review": "node --experimental-strip-types scripts/catalog-youtube-permanent.ts apply",
+    "catalog:youtube:seed": "node --experimental-strip-types scripts/catalog-youtube-seed.ts",
+    "catalog:youtube:review": "node --experimental-strip-types scripts/catalog-youtube-review.ts",
+    "catalog:youtube:candidates": "node --experimental-strip-types scripts/catalog-youtube-candidates.ts",
+    "catalog:youtube:test-collect": "node --experimental-strip-types scripts/catalog-youtube-test-collect.ts",
+    "e2e:youtube": "node --experimental-strip-types scripts/youtube-e2e-driver.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^33.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

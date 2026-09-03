@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.DS_Store
+adapters/ax/.build/
+media/*.mp4
+media/*.mov
+media/*.webm
+
+# never commit a real key
+.env
+
+# Research and maintainer outputs are reproducible local evidence, not runtime input.
+artifacts/bluesky-probe/
+artifacts/editorial-feed/
+artifacts/youtube-catalog/
+config/youtube-sources.candidates.json
+config/youtube-sources.test.json
+# Keep aggregate decisions visible when generated locally.
+!artifacts/bluesky-probe/summary.json
+!artifacts/editorial-feed/summary.json

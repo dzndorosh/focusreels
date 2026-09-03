@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; media-src file: blob:; style-src 'unsafe-inline'; script-src 'self'; img-src data:;" />
+    <title>FocusReels</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --pill: rgba(18, 18, 20, .72);
+        --ink: rgba(255, 255, 255, .95);
+        --ink-dim: rgba(255, 255, 255, .6);
+        --ease: cubic-bezier(.2, .7, .3, 1);
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; background: transparent; overflow: hidden;
+                   font: 12px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+                   -webkit-user-select: none; user-select: none; cursor: default; }
+
+      #frame {
+        position: relative; height: 100%; width: 100%;
+        border-radius: 18px; overflow: hidden;
+        background: #0b0b0d; isolation: isolate;
+        box-shadow: 0 18px 48px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.10) inset;
+        opacity: 0; transform: translateY(8px) scale(.985);
+        transition: opacity .22s var(--ease), transform .22s var(--ease);
+      }
+      #frame.visible { opacity: 1; transform: none; }
+
+      /* Two stacked slides so the next clip is already visible while you drag,
+         the way a reels feed behaves. The stage is what moves. */
+      #stage { position: absolute; inset: 0; }
+      #stage.animating { transition: transform .26s var(--ease); }
+      .slide { position: absolute; inset: 0; }
+      .slide video { height: 100%; width: 100%; object-fit: cover; display: block;
+                     background: #0b0b0d; }
+      #stage.hidden { display: none; }
+
+      /* shown when the media folder is empty — the app still works, silently */
+      #placeholder {
+        position: absolute; inset: 0; display: none;
+        align-items: center; justify-content: center; text-align: center; padding: 20px;
+        color: var(--ink-dim);
+        background: linear-gradient(155deg, #1b2030, #2a1c33 45%, #10202a);
+        background-size: 220% 220%;
+        animation: drift 14s ease-in-out infinite alternate;
+      }
+      #placeholder.on { display: flex; }
+      #placeholder p { font-size: 12px; max-width: 100%; }
+      #placeholder code {
+        display: block; margin-top: 6px; color: rgba(255,255,255,.85); font-size: 10px;
+        overflow-wrap: anywhere; word-break: break-word; line-height: 1.5;
+      }
+      @keyframes drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+
+      /* ── controls ──────────────────────────────────────────────────────────
+         Hidden until the pointer is over the overlay. Everything interactive
+         lives inside .zone, which is what the pointer-grab logic looks for. */
+      .controls {
+        position: absolute; opacity: 0; pointer-events: none;
+        transition: opacity .16s var(--ease), transform .16s var(--ease);
+      }
+      #frame.hovered .controls { opacity: 1; pointer-events: auto; }
+
+      #topbar { top: 10px; left: 10px; display: flex; align-items: center; gap: 2px;
+                transform: translateY(-4px); }
+      #frame.hovered #topbar { transform: none; }
+
+      .pill {
+        display: flex; align-items: center; height: 30px; padding: 0 3px;
+        border-radius: 15px; background: var(--pill);
+        -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      }
+
+      .btn {
+        display: grid; place-items: center; width: 26px; height: 26px; flex: none;
+        border: 0; padding: 0; border-radius: 50%; background: transparent;
+        color: var(--ink); cursor: pointer;
+        transition: background .12s var(--ease), transform .12s var(--ease);
+      }
+      .btn:hover { background: rgba(255,255,255,.14); }
+      .btn:active { transform: scale(.9); }
+      .btn svg { width: 14px; height: 14px; display: block; fill: currentColor; }
+
+      /* volume grows out of the mute button on hover, as in the reference */
+      #volumeWrap {
+        width: 0; overflow: hidden; display: flex; align-items: center;
+        transition: width .18s var(--ease);
+      }
+      #audio:hover #volumeWrap, #audio.open #volumeWrap { width: 62px; }
+
+      #volume {
+        -webkit-appearance: none; appearance: none; width: 54px; margin: 0 4px 0 2px;
+        height: 12px; background: transparent; cursor: pointer;
+      }
+      #volume::-webkit-slider-runnable-track {
+        height: 3px; border-radius: 2px;
+        background: linear-gradient(to right, var(--ink) var(--pct, 60%),
+                                    rgba(255,255,255,.26) var(--pct, 60%));
+      }
+      #volume::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 11px; height: 11px; border-radius: 50%; background: #fff;
+        margin-top: -4px; box-shadow: 0 1px 3px rgba(0,0,0,.5);
+      }
+
+      /* ── bottom stack ─────────────────────────────────────────────────── */
+      #bottom { left: 0; right: 0; bottom: 0; }
+
+      #social {
+        display: flex; align-items: center; gap: 18px;
+        padding: 0 12px 8px;
+      }
+      .social-btn {
+        display: flex; align-items: center; gap: 6px;
+        border: 0; padding: 0; background: transparent; cursor: pointer;
+        color: var(--ink); font: inherit;
+        text-shadow: 0 1px 4px rgba(0,0,0,.6);
+        transition: transform .12s var(--ease);
+      }
+      .social-btn:active { transform: scale(.92); }
+      .social-btn svg { width: 19px; height: 19px; fill: currentColor; display: block;
+                        filter: drop-shadow(0 1px 3px rgba(0,0,0,.55)); }
+      .social-btn .count { font-size: 11px; font-variant-numeric: tabular-nums;
+                           color: rgba(255,255,255,.88); }
+      #like.on { color: #ff3b5c; }
+      #like.on .count { color: #ff3b5c; }
+      #captions.on { color: #6ec7ff; }
+      #like.bump svg { animation: bump .32s var(--ease); }
+      @keyframes bump { 40% { transform: scale(1.35); } 70% { transform: scale(.92); } }
+
+      #hint {
+        position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+        text-align: center; font-size: 11px; letter-spacing: .02em;
+        color: rgba(255,255,255,.75); text-shadow: 0 1px 5px rgba(0,0,0,.7);
+        opacity: 0; transition: opacity .2s var(--ease); pointer-events: none;
+      }
+      #frame.hint-on #hint { opacity: 1; }
+
+      /* scrub */
+      #scrub { display: flex; align-items: center; gap: 8px; padding: 0 12px 8px; }
+      .time { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--ink-dim);
+              text-shadow: 0 1px 3px rgba(0,0,0,.6); flex: none; }
+      #track {
+        position: relative; flex: 1; height: 14px; display: flex; align-items: center;
+        cursor: pointer; touch-action: none;
+      }
+      #track::before {
+        content: ''; position: absolute; left: 0; right: 0; height: 3px;
+        border-radius: 2px; background: rgba(255,255,255,.26);
+      }
+      #fill {
+        position: absolute; left: 0; height: 3px; border-radius: 2px;
+        background: var(--ink); width: 0;
+      }
+      #knob {
+        position: absolute; width: 11px; height: 11px; border-radius: 50%; background: #fff;
+        left: 0; margin-left: -5.5px; box-shadow: 0 1px 3px rgba(0,0,0,.5);
+        transform: scale(0); transition: transform .14s var(--ease);
+      }
+      #frame.hovered #knob, #track.dragging #knob { transform: scale(1); }
+
+      /* the product's own signal — always visible, never hidden by the chrome */
+      #status {
+        position: absolute; left: 10px; right: 10px; bottom: 10px;
+        display: flex; align-items: center; gap: 7px;
+        padding: 7px 10px; border-radius: 11px;
+        background: rgba(10,10,12,.55);
+        -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+        color: rgba(255,255,255,.9); letter-spacing: .01em;
+        transition: opacity .16s var(--ease), transform .16s var(--ease);
+      }
+      /* slides out of the way so the controls own the bottom while hovering */
+      #frame.hovered #status { opacity: 0; transform: translateY(6px); pointer-events: none; }
+      #dot { width: 6px; height: 6px; border-radius: 50%; background: #5ad48a; flex: none;
+             animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+      #label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #elapsed { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+      #parallel { color: var(--ink-dim); }
+
+      /* a soft scrim so white glyphs stay readable over a bright frame */
+      #scrim {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+        background: linear-gradient(to top, rgba(0,0,0,.55), transparent);
+        opacity: 0; transition: opacity .16s var(--ease); pointer-events: none;
+      }
+      #frame.hovered #scrim { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <div id="frame">
+      <div id="stage">
+        <div class="slide" id="slideA"><video autoplay muted playsinline></video></div>
+        <div class="slide" id="slideB"><video muted playsinline preload="auto"></video></div>
+      </div>
+
+      <div id="placeholder">
+        <p>
+          Drop vertical clips into
+          <code>~/Library/Application Support/<wbr />FocusReels/media</code>
+        </p>
+      </div>
+
+      <div id="scrim"></div>
+      <div id="hint">swipe to change clip</div>
+
+      <!-- top-left: playback + audio -->
+      <div id="topbar" class="controls zone">
+        <div class="pill">
+          <button id="playPause" class="btn" title="Pause" aria-label="Pause">
+            <svg viewBox="0 0 24 24"><path id="playPauseIcon" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+          </button>
+        </div>
+        <div id="audio" class="pill">
+          <button id="mute" class="btn" title="Unmute" aria-label="Unmute">
+            <svg viewBox="0 0 24 24"><path id="muteIcon" d=""/></svg>
+          </button>
+          <div id="volumeWrap">
+            <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6"
+                   aria-label="Volume" />
+          </div>
+        </div>
+      </div>
+
+      <!-- bottom: like / captions, then the scrubber -->
+      <div id="bottom" class="controls zone">
+        <div id="social">
+          <button id="like" class="social-btn" title="Like" aria-pressed="false">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.7-9.6-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.6 12c-2.1 4.3-9.6 9-9.6 9z"/></svg>
+            <span class="count" id="likeCount">41 208</span>
+          </button>
+          <button id="captions" class="social-btn" title="Captions" aria-pressed="false">
+            <svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm0 4h12v2H3zm0 4h18v2H3zm0 4h12v2H3z"/></svg>
+            <span class="count" id="captionsCount">318</span>
+          </button>
+        </div>
+        <div id="scrub">
+          <span class="time" id="cur">0:00</span>
+          <div id="track">
+            <div id="fill"></div>
+            <div id="knob"></div>
+          </div>
+          <span class="time" id="dur">0:00</span>
+        </div>
+      </div>
+
+      <div id="status">
+        <span id="dot"></span>
+        <span id="label">working…</span>
+        <span id="parallel"></span>
+        <span id="elapsed">0:00</span>
+      </div>
+    </div>
+    <script src="player.js"></script>
+  </body>
+</html>

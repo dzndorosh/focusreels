@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-02T00:00:00Z",
+  "sources": [],
+  "note": "No source is promoted to the MVP default until all five editorial categories pass health, topic-precision, video-share, moderation and manual-review gates. This is intentionally fail-closed."
+}
