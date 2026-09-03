@@ -4,20 +4,6 @@
   "catalogLimit": 500,
   "sources": [
     {
-      "channelId": "UCV03SRZXJEz-hchIAogeJOg",
-      "category": "technology",
-      "weight": 1,
-      "enabled": true,
-      "maxVideos": 50
-    },
-    {
-      "channelId": "UCXZCJLdBC09xxGZ6gcdrc6A",
-      "category": "technology",
-      "weight": 1,
-      "enabled": true,
-      "maxVideos": 50
-    },
-    {
       "channelId": "UCa__kMdkhFJvXcx1WALJ3hg",
       "category": "other",
       "weight": 1,
@@ -62,13 +48,6 @@
     {
       "channelId": "UCXPzNYnckscfk3Q8_4sMYkQ",
       "category": "other",
-      "weight": 1,
-      "enabled": true,
-      "maxVideos": 50
-    },
-    {
-      "channelId": "UC6VcWc1rAoWdBCM0JxrRQ3A",
-      "category": "gaming",
       "weight": 1,
       "enabled": true,
       "maxVideos": 50
@@ -237,13 +216,6 @@
     {
       "channelId": "UCjmJDM5pRKbUlVIzDYYWb6g",
       "category": "other",
-      "weight": 1,
-      "enabled": true,
-      "maxVideos": 50
-    },
-    {
-      "channelId": "UC-2Y8dQb0S6DtpxNgAKoJKA",
-      "category": "gaming",
       "weight": 1,
       "enabled": true,
       "maxVideos": 50
