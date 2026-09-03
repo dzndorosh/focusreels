@@ -36,6 +36,14 @@ export interface SourceInfo {
 /** An adapter emitting a fresh random id per event must not grow settings.json. */
 export const MAX_SOURCES = 64;
 
+/**
+ * A cap-rejected id gets its own small, bounded memory — never `list()`: it has
+ * no policy, so showing it as a registered source would be a lie. Bounded for
+ * the same reason the cap itself exists: an adapter minting a fresh id per
+ * event must not be able to grow this without limit either.
+ */
+const MAX_CAP_REJECTED_IDS = 16;
+
 export interface SourceRegistryOptions {
   getPolicies: () => Record<string, SourcePolicy>;
   /** persist a newly discovered source; called at most once per source */
@@ -57,6 +65,8 @@ export class SourceRegistry {
   private readonly max: number;
   /** events refused because the cap was already full */
   private _capRejected = 0;
+  /** most recent distinct-event ids refused for the cap, oldest first, capped */
+  private readonly _capRejectedIds: string[] = [];
 
   constructor(private readonly opts: SourceRegistryOptions) {
     this.now = opts.now ?? (() => Date.now());
@@ -67,6 +77,21 @@ export class SourceRegistry {
     return this._capRejected;
   }
 
+  /** Ids refused because the cap was full — no policy, so never in `list()`. */
+  capRejectedIds(): string[] {
+    return [...this._capRejectedIds];
+  }
+
+  /**
+   * Called from "Forget third-party sources": once the offending settings
+   * entries are gone, the bookkeeping that reported them should go too, so a
+   * legitimate adapter re-registering next doesn't sit under a stale warning.
+   */
+  clearCapRejected(): void {
+    this._capRejected = 0;
+    this._capRejectedIds.length = 0;
+  }
+
   admit(event: TurnEvent): SourceVerdict {
     const policies = this.opts.getPolicies();
     let policy = policies[event.source];
@@ -74,6 +99,10 @@ export class SourceRegistry {
     if (!policy) {
       if (Object.keys(policies).length >= this.max) {
         this._capRejected += 1;
+        if (!this._capRejectedIds.includes(event.source)) {
+          this._capRejectedIds.push(event.source);
+          if (this._capRejectedIds.length > MAX_CAP_REJECTED_IDS) this._capRejectedIds.shift();
+        }
         return { allowed: false, reason: 'cap_reached' };
       }
       // An adapter that was deliberately installed and claims to know gets to

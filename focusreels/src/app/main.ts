@@ -14,7 +14,7 @@ import { OVERLAY_CHANNELS } from './overlayIpc.js';
 import { EventBroker } from '../broker/server.js';
 import { mediaDir } from '../broker/paths.js';
 import { TurnRegistry, type RegistryConfig } from '../core/turnRegistry.js';
-import { sanitizeEvent, type SourceId } from '../core/events.js';
+import { BUILTIN_SOURCES, sanitizeEvent, type SourceId } from '../core/events.js';
 import { SourceRegistry } from '../core/sourceRegistry.js';
 import { IdeWatcher } from './ideWatcher.js';
 import { playlist } from './mediaLibrary.js';
@@ -130,10 +130,21 @@ const tray = new TrayController({
   activeTurns: () => registry.list().filter((t) => t.state === 'active').length,
   feedStatus: () => ({ demoMode: false, reason: null, queued: 0 }),
   sources: () => sourceRegistry.list(),
+  capRejected: () => sourceRegistry.capRejected,
   onSimulateStart: () => simulate('turn_started'),
   onSimulateStop: () => simulate('turn_ended'),
   onNextVideo: () => {},
   onRefreshFeed: () => youtube.command('refresh'),
+  onForgetThirdPartySources: () => {
+    // Self-heals a cap lockout: drop every non-built-in entry so a legitimate
+    // adapter re-registers on its next event, and clear the stale warning.
+    const builtins = new Set<string>(BUILTIN_SOURCES);
+    const kept = Object.fromEntries(
+      Object.entries(settings.get().sources).filter(([id]) => builtins.has(id)),
+    );
+    settings.update({ sources: kept });
+    sourceRegistry.clearCapRejected();
+  },
   onQuit: () => app.quit(),
 });
 

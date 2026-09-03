@@ -73,7 +73,8 @@ node /path/to/focusreels/dist/cli/emit.js \
 - A `turn_started` is shown only after the show delay (500 ms by default), so a
   fast answer never flashes a window.
 - A turn nobody closes is closed by a watchdog after 10 minutes.
-- At most 64 distinct sources are ever registered. Do not generate a fresh
-  `source` per run — that is what `turn_id` is for.
+- At most 64 distinct sources are ever registered in total, five of which are
+  the built-ins — so third-party adapters share a budget of 59. Do not
+  generate a fresh `source` per run — that is what `turn_id` is for.
 - Switching a source off stops it opening new turns; it never strands a window
   that is already on screen.

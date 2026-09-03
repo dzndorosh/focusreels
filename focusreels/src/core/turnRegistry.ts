@@ -147,7 +147,7 @@ export class TurnRegistry {
     this.send(entry, { kind: 'event', event });
   }
 
-  /** End every turn from one source — the IDE quit, or the user disabled it. */
+  /** End every turn from one source — the IDE quit. */
   cancelSource(source: SourceId, outcome: Extract<Outcome, 'aborted' | 'ide_closed'>): void {
     for (const entry of [...this.entries.values()]) {
       if (entry.source === source) this.send(entry, { kind: 'cancel', outcome });

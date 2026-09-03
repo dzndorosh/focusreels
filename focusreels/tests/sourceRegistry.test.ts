@@ -67,6 +67,37 @@ describe('SourceRegistry', () => {
     expect(policies.three).toBeUndefined();
   });
 
+  it('records a cap-rejected id in a separate, bounded accessor', () => {
+    const r = build(2);
+    r.admit(ev('one'));
+    r.admit(ev('two'));
+    r.admit(ev('three'));
+    expect(r.capRejected).toBe(1);
+    expect(r.capRejectedIds()).toEqual(['three']);
+    // Never masquerades as a registered source: no policy, so not in list().
+    expect(r.list().some((i) => i.source === 'three')).toBe(false);
+  });
+
+  it('bounds the cap-rejected id set at 16 under many distinct rejections', () => {
+    const r = build(0);
+    for (let i = 0; i < 40; i += 1) r.admit(ev(`bad-${i}`));
+    expect(r.capRejected).toBe(40);
+    expect(r.capRejectedIds().length).toBe(16);
+    // Keeps the most recent ones.
+    expect(r.capRejectedIds()).toEqual(
+      Array.from({ length: 16 }, (_, i) => `bad-${40 - 16 + i}`),
+    );
+  });
+
+  it('clears both the counter and the id set', () => {
+    const r = build(0);
+    r.admit(ev('one'));
+    r.admit(ev('two'));
+    r.clearCapRejected();
+    expect(r.capRejected).toBe(0);
+    expect(r.capRejectedIds()).toEqual([]);
+  });
+
   it('counts liveness without touching the policy store', () => {
     const r = build();
     r.admit(ev('aider'));

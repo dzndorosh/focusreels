@@ -18,6 +18,7 @@ import {
   EVENT_NAMES,
   OUTCOMES,
   SOURCE_ID_RE,
+  type Confidence,
   type Outcome,
 } from '../core/events.js';
 
@@ -129,7 +130,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  const confidence = args.confidence === 'heuristic' ? 'heuristic' : 'exact';
+  let confidence: Confidence = 'exact';
+  if (args.confidence !== undefined) {
+    if (!(CONFIDENCES as readonly string[]).includes(args.confidence)) {
+      // Same contract as --source above: never fail the hook, but say why on
+      // stderr — a mistyped/bare --confidence must not silently become
+      // 'exact', which would register a guessed source as trusted forever.
+      process.stderr.write(`focusreels-emit: invalid --confidence "${args.confidence}"\n${USAGE}\n`);
+      return;
+    }
+    confidence = args.confidence as Confidence;
+  }
 
   let turnId = args['turn-id'] ? toOpaqueId(args['turn-id']) : null;
   let outcome = args.outcome ?? null;

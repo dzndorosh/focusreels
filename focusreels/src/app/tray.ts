@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { mediaDir } from '../broker/paths.js';
 import type { Settings, SettingsStore } from './settings.js';
-import type { SourceInfo } from '../core/sourceRegistry.js';
+import { MAX_SOURCES, type SourceInfo } from '../core/sourceRegistry.js';
 
 const SOURCE_LABELS: Partial<Record<string, string>> = {
   cursor: 'Cursor',
@@ -26,10 +26,13 @@ export interface TrayDeps {
   activeTurns: () => number;
   feedStatus: () => { demoMode: boolean; reason: string | null; queued: number };
   sources: () => SourceInfo[];
+  /** events refused since launch (or since last "Forget third-party sources") because the cap was full */
+  capRejected: () => number;
   onSimulateStart: () => void;
   onSimulateStop: () => void;
   onNextVideo: () => void;
   onRefreshFeed: () => void;
+  onForgetThirdPartySources: () => void;
   onQuit: () => void;
 }
 
@@ -128,26 +131,41 @@ export class TrayController {
       { type: 'separator' },
       {
         label: 'Sources',
-        submenu: this.deps.sources().map((info) => ({
-          // A raw id is safe to show: SOURCE_ID_RE forbids anything prose-shaped.
-          label:
-            (SOURCE_LABELS[info.source] ?? info.source) +
-            (info.confidence === 'heuristic' ? ' (guess)' : ''),
-          type: 'checkbox' as const,
-          checked: info.enabled,
-          // Read settings fresh here rather than closing over `s`: a source can
-          // register (sourceRegistry.onRegister -> settings.update) after this
-          // menu was rendered but before the click, and `sources` is replaced
-          // wholesale (not deep-merged) on write — closing over the stale `s`
-          // would silently drop that newly registered source from settings.json.
-          click: () =>
-            this.set({
-              sources: {
-                ...this.deps.settings.get().sources,
-                [info.source]: { enabled: !info.enabled, confidence: info.confidence },
-              },
-            }),
-        })),
+        submenu: [
+          ...this.deps.sources().map((info) => ({
+            // A raw id is safe to show: SOURCE_ID_RE forbids anything prose-shaped.
+            label:
+              (SOURCE_LABELS[info.source] ?? info.source) +
+              (info.confidence === 'heuristic' ? ' (guess)' : ''),
+            type: 'checkbox' as const,
+            checked: info.enabled,
+            // Read settings fresh here rather than closing over `s`: a source can
+            // register (sourceRegistry.onRegister -> settings.update) after this
+            // menu was rendered but before the click, and `sources` is replaced
+            // wholesale (not deep-merged) on write — closing over the stale `s`
+            // would silently drop that newly registered source from settings.json.
+            click: () =>
+              this.set({
+                sources: {
+                  ...this.deps.settings.get().sources,
+                  [info.source]: { enabled: !info.enabled, confidence: info.confidence },
+                },
+              }),
+          })),
+          ...(this.deps.capRejected() > 0
+            ? [
+                {
+                  label: `${this.deps.capRejected()} event(s) refused — source list is full (${MAX_SOURCES} max)`,
+                  enabled: false,
+                },
+              ]
+            : []),
+          { type: 'separator' as const },
+          {
+            label: 'Forget third-party sources',
+            click: () => this.deps.onForgetThirdPartySources(),
+          },
+        ],
       },
       {
         label: 'Show after',
