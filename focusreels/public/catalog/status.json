@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-09-03T04:01:43.391Z",
+  "totalVideos": 448,
+  "sourceCount": 38,
+  "categoryCounts": {
+    "gaming": 48,
+    "technology": 160,
+    "other": 231,
+    "humor": 9
+  },
+  "schemaVersion": 1
+}

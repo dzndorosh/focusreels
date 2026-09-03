@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "name": "focusreels-start",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh started"
+      }
+    ],
+    "Stop": [
+      {
+        "name": "focusreels-stop",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh ended"
+      }
+    ]
+  }
+}

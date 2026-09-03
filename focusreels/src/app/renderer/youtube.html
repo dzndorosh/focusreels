@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none';
+                   script-src 'self' https://www.youtube.com https://s.ytimg.com;
+                   frame-src https://www.youtube.com https://www.youtube-nocookie.com;
+                   img-src https://i.ytimg.com data:;
+                   media-src file:;
+                   style-src 'unsafe-inline';
+                   connect-src https://www.youtube.com" />
+    <title>FocusReels</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: rgba(255, 255, 255, .95);
+        --ink-dim: rgba(255, 255, 255, .55);
+        --chrome: #121215;
+        --ease: cubic-bezier(.2, .7, .3, 1);
+        /* 326 wide at 9:16 — the rest of the 720 is the control area */
+        --stage: 580px;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        height: 100%; overflow: hidden; background: transparent; color: var(--ink);
+        font: 12px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        -webkit-user-select: none; user-select: none;
+      }
+
+      #app {
+        position: absolute; left: 0; top: 0; width: 326px; height: 720px;
+        display: flex; flex-direction: column; overflow: hidden;
+        transform: translate3d(var(--sx, 0px), var(--sy, 0px), 0);
+        will-change: transform;
+        background: #0b0b0d; border-radius: 14px;
+        box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08) inset;
+      }
+      body.collapsed #app { display: none; }
+
+      /* Anything draggable says so here; controls opt back out. */
+      /* No `-webkit-app-region: drag` anywhere. A native drag region is moved
+         by the window server, one setBounds per frame, and hands us no
+         velocity — so the gesture and the spring that follows it could not
+         share a coordinate space. Dragging is driven by pointer events here
+         instead, and moves the surface by transform alone. */
+
+      /* The work-area native window never changes bounds while visible. The
+         panel is always in this one coordinate system and only translates. */
+      body.staged { background: transparent; }
+      /* The single compensation frame must not animate — it exists to hide a
+         geometry change, not to show one. */
+      body.settling #app, body.settling #fab {
+        transform: translate3d(var(--sx, 0px), var(--sy, 0px), 0);
+        transition: none;
+      }
+      /* While it moves the surface is its own compositor layer: no drop shadow
+         travelling with it, nothing painted outside the rounded clip. */
+      body.morphing #app {
+        background: transparent;
+        overflow: hidden;
+        isolation: isolate;
+        backface-visibility: hidden;
+        box-shadow: none;
+      }
+      #app > #stage, body.morphing #app > #stage { border-radius: inherit; }
+
+      #fab {
+        position: absolute;
+        left: 0;
+        top: 0;
+        margin: 0;
+        transform: translate3d(var(--sx, 0px), var(--sy, 0px), 0);
+        border-radius: 14px;
+        transform-origin: var(--sorigin-x, 50%) var(--sorigin-y, 50%);
+        will-change: transform;
+      }
+      #fab { display: none; }
+      body.collapsed #fab { display: flex; }
+
+      /* the drag handle: no native app-region, so the gesture stays in one
+         coordinate space with the spring that follows it */
+      #chrome { cursor: default; }
+
+      /* ── morph ─────────────────────────────────────────────────────────
+         While a morph runs the window is pinned to a stage that contains both
+         shapes, and nothing here changes layout: only transform and opacity,
+         both of which the compositor can animate on its own. Every value comes
+         from one shared progress, so the surface and the pill are visibly the
+         same object rather than two things cross-fading. */
+      body.morphing #app {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: var(--exp-w, 326px);
+        height: var(--exp-h, 720px);
+        transform-origin: var(--origin-x, 50%) var(--origin-y, 50%);
+        transform: translate3d(var(--exp-x, 0px), var(--exp-y, 0px), 0) scale(var(--morph-scale, 1));
+        border-radius: var(--morph-radius, 14px);
+        opacity: var(--surface-opacity, 1);
+        will-change: transform, opacity;
+      }
+      body.morphing #chrome { opacity: var(--controls-opacity, 1); }
+
+      body.morphing #fab {
+        display: flex;
+        position: absolute;
+        inset: auto;
+        left: 0;
+        top: 0;
+        opacity: var(--fab-opacity, 0);
+        transform: translate3d(var(--col-x, 0px), var(--col-y, 0px), 0) scale(var(--fab-scale, 1));
+        transition: none; /* the spring owns this, not CSS */
+        will-change: transform, opacity;
+      }
+
+      /* A cross-origin player repaints badly under transform, so the morph
+         plays over a still of the current frame. */
+      #snapshot {
+        position: absolute; inset: 0; z-index: 4; display: none;
+        width: 100%; height: 100%; object-fit: cover;
+      }
+      body.morphing #snapshot.ready { display: block; }
+      /* Only stand the still in for the live panes once it has actually
+         arrived — the capture is best-effort, and hiding them unconditionally
+         would leave a black surface whenever it did not. */
+      body.morphing.has-snapshot #stage .pane { visibility: hidden; }
+
+      /* ── Animation Lab (development only) ─────────────────────────────── */
+      #lab {
+        position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 20;
+        display: none; flex-direction: column; gap: 6px;
+        padding: 8px; border-radius: 10px;
+        background: rgba(8, 8, 10, .88); font-size: 10px; line-height: 1.3;
+      }
+      body.lab #lab { display: flex; }
+      /* There is no room for it in a 56px window, and at z-index 20 it would
+         swallow every click meant for the pill. */
+      /* No room for it in a 56px window, and at z-index 20 it would swallow
+         every click meant for the pill. It stays up during a morph, though —
+         interrupting a transition is exactly what it is for. */
+      body.collapsed #lab { display: none; }
+      #lab .row { display: flex; flex-wrap: wrap; gap: 4px; }
+      #lab button {
+        height: 20px; padding: 0 7px; border-radius: 6px; font-size: 10px;
+        background: rgba(255,255,255,.12);
+      }
+      #lab .readout { display: flex; gap: 10px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+      #lab .anchors button { width: 20px; padding: 0; }
+
+      /* One deliberate exception to the rule below: a cross-origin player
+         consumes the wheel, so scrolling over the video can only be seen by a
+         layer of ours on top of it. It stops short of the bottom strip, leaving
+         YouTube's own controls exposed and clickable — that band is the whole
+         price of the gesture. Turn `scrollToChange` off and it is not there. */
+      #wheelCatcher {
+        position: absolute; left: 0; right: 0; top: 0; bottom: 52px; z-index: 3;
+        display: none; background: transparent; cursor: default;
+      }
+      body.scroll-gesture #wheelCatcher { display: none; }
+      body.collapsed #wheelCatcher { display: none; }
+
+      /* ── the player itself. Nothing of ours is ever drawn on top of it. ── */
+      /* No black under the video. On a transparent window any sub-pixel seam
+         at a rounded corner would reveal this layer as a dark hairline. */
+      #stage { position: relative; height: var(--stage); flex: none; background: transparent; }
+      #youtube-player, #youtube-player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+      .pane {
+        position: absolute; inset: 0; opacity: 0; pointer-events: none;
+        transition: opacity .18s var(--ease);
+      }
+      .pane.on { opacity: 1; pointer-events: auto; }
+      .pane iframe, .pane video { width: 100%; height: 100%; border: 0; display: block;
+                                  background: transparent; object-fit: cover; }
+      /* A hair of overscan, so rounding the clip can never expose an edge. */
+      .pane { inset: -1px; }
+
+      /* shown only while no player is up yet, and replaced the moment one is */
+      #curtain {
+        position: absolute; inset: 0; display: grid; place-items: center;
+        text-align: center; padding: 24px; color: var(--ink-dim);
+        background: linear-gradient(160deg, #16192a, #2a1c33 55%, #10202a);
+      }
+      #curtain.gone { display: none; }
+      #curtain code { display: block; margin-top: 8px; font-size: 10px;
+                      color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
+
+      /* ── the control area, beside the player, never over it ─────────────── */
+      /* 720 − 580 leaves 140px, so every row here is measured, not guessed:
+         12+11 padding · 17 title · 16 sub · 34 buttons · 14 foot · 3×8 gaps. */
+      #chrome {
+        flex: 1; min-height: 0; overflow: hidden; background: var(--chrome);
+        display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 11px;
+      }
+
+      /* ── the collapsed pill: a 56px circle, and nothing else ───────────── */
+      #fab {
+        display: none; position: absolute; inset: 0;
+        align-items: center; justify-content: center;
+        width: 56px; height: 56px; padding: 0; border: 0; border-radius: 50%;
+        background: linear-gradient(150deg, #2b2f45, #1a1d29);
+        box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.12) inset;
+        color: var(--ink); cursor: grab;
+        transition: transform .14s var(--ease), box-shadow .14s var(--ease),
+                    background .14s var(--ease);
+      }
+      body.collapsed #fab { display: flex; }
+      #fab:hover {
+        background: linear-gradient(150deg, #363c58, #212534);
+        box-shadow: 0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.2) inset;
+        transform: scale(1.05);
+      }
+      #fab:focus-visible { outline: 2px solid #6ec7ff; outline-offset: 2px; }
+      #fab:active { cursor: grabbing; transform: scale(.96); }
+      body.reduce-motion #fab { transition: none; }
+
+      /* the "still working" pulse — no text, nothing from the IDE */
+      #fabRing {
+        position: absolute; inset: 3px; border-radius: 50%;
+        border: 2px solid rgba(90, 212, 138, .85); border-top-color: transparent;
+        animation: spin 1.5s linear infinite;
+      }
+      body.reduce-motion #fabRing { animation: none; opacity: .55; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #fabIcon { width: 20px; height: 20px; fill: currentColor; position: relative; }
+
+      #collapse { margin-left: auto; }
+
+      #title {
+        flex: none; height: 17px; font-size: 12.5px; font-weight: 590; line-height: 17px;
+        color: var(--ink);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      #sub { flex: none; display: flex; align-items: center; gap: 6px; height: 16px; }
+      #channel { flex: 1; font-size: 11px; color: var(--ink-dim);
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      #row { flex: none; display: flex; align-items: center; gap: 8px; }
+
+      button {
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        height: 34px; padding: 0 14px; border: 0; border-radius: 10px;
+        background: rgba(255,255,255,.10); color: var(--ink);
+        font: inherit; font-weight: 560; cursor: pointer;
+        transition: background .12s var(--ease), transform .12s var(--ease);
+      }
+      button:hover { background: rgba(255,255,255,.17); }
+      button:active { transform: scale(.96); }
+      button:disabled { opacity: .4; cursor: default; }
+      button[hidden] { display: none !important; }
+      button svg { width: 14px; height: 14px; fill: currentColor; }
+      #next { flex: 1; }
+      .icon { padding: 0; width: 34px; flex: none; }
+      #close { background: rgba(255,255,255,.07); }
+      #close:hover { background: rgba(255,80,80,.35); }
+
+      #foot { flex: none; display: flex; align-items: center; gap: 8px; height: 14px;
+              font-size: 10.5px; color: var(--ink-dim); }
+      #dot { width: 6px; height: 6px; border-radius: 50%; background: #5ad48a; flex: none;
+             animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+      #agent { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #elapsed { font-variant-numeric: tabular-nums; }
+
+      /* Sits on the channel line rather than taking a row of its own — the
+         control area has exactly 140px and none of it is spare. */
+      #badge {
+        display: none; flex: none; max-width: 62%;
+        padding: 1px 6px; border-radius: 5px; font-size: 9.5px; letter-spacing: .02em;
+        background: rgba(255,190,80,.16); color: #ffca7a;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      #badge.on { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <div id="youtube-player"></div>
+        <div class="pane" id="paneA"></div>
+        <div class="pane" id="paneB"></div>
+        <img id="snapshot" alt="" aria-hidden="true" />
+        <div id="wheelCatcher" class="interactive" aria-hidden="true"></div>
+        <div id="curtain">
+          <p id="curtainText">Loading feed…</p>
+        </div>
+      </div>
+
+      <div id="chrome" class="interactive">
+        <div id="title">—</div>
+        <div id="sub">
+          <span id="channel"></span>
+          <span id="badge">Demo mode</span>
+        </div>
+        <div id="row">
+          <button id="next">
+            <svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM16 5h3v14h-3z"/></svg>
+            Next
+          </button>
+          <button id="mute" class="icon" title="Unmute" aria-label="Unmute">
+            <svg viewBox="0 0 24 24"><path id="muteIcon" d=""/></svg>
+          </button>
+          <button id="collapse" class="icon" title="Collapse" aria-label="Collapse player">
+            <svg viewBox="0 0 24 24"><path d="M5 11h14v2H5zM7 15h10v2H7zM7 7h10v2H7z"/></svg>
+          </button>
+          <button id="close" class="icon" title="Close" aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 5.7 18.3l-1.4-1.4L10.6 12 4.3 5.7l1.4-1.4L12 10.6l4.9-4.9z"/></svg>
+          </button>
+        </div>
+        <div id="foot">
+          <span id="dot"></span>
+          <span id="agent">working…</span>
+          <span id="elapsed">0:00</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="lab" class="interactive">
+      <div class="row">
+        <button data-lab="collapse">Collapse</button>
+        <button data-lab="expand">Expand</button>
+        <button data-lab="speed:0.25">0.25×</button>
+        <button data-lab="speed:1">1×</button>
+      </div>
+      <div class="row anchors">
+        <button data-lab="snap:top-left">↖</button>
+        <button data-lab="snap:top-center">↑</button>
+        <button data-lab="snap:top-right">↗</button>
+        <button data-lab="snap:middle-left">←</button>
+        <button data-lab="snap:center">•</button>
+        <button data-lab="snap:middle-right">→</button>
+        <button data-lab="snap:bottom-left">↙</button>
+        <button data-lab="snap:bottom-center">↓</button>
+        <button data-lab="snap:bottom-right">↘</button>
+      </div>
+      <div class="readout">
+        <span id="labFps">— fps</span>
+        <span id="labState">expanded</span>
+        <span id="labVel">v 0.00</span>
+      </div>
+    </div>
+
+    <button id="fab" class="interactive" type="button"
+            title="Expand video" aria-label="Expand video, AI is still working">
+      <span id="fabRing" aria-hidden="true"></span>
+      <svg id="fabIcon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 5l11 7-11 7z" />
+      </svg>
+    </button>
+    <script src="youtube.js"></script>
+  </body>
+</html>

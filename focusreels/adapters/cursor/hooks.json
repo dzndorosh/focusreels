@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      { "command": "$HOME/.focusreels/adapters/cursor/focusreels-cursor-hook.sh started" }
+    ],
+    "stop": [
+      { "command": "$HOME/.focusreels/adapters/cursor/focusreels-cursor-hook.sh ended" }
+    ]
+  }
+}
