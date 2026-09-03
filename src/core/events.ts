@@ -1,14 +1,36 @@
 /**
  * Event contract between IDE adapters and the app.
  *
- * PRIVACY INVARIANT: an event carries five metadata fields and nothing else.
+ * PRIVACY INVARIANT: an event carries six metadata fields and nothing else.
  * No prompt, no response, no code, no file path, no project name.
  * `sanitizeEvent` is the single choke point that enforces this — every byte
  * arriving from an adapter goes through it before touching the rest of the app.
  */
 
-export const SOURCES = ['cursor', 'vscode-copilot', 'jetbrains', 'claude-code', 'demo'] as const;
-export type SourceId = (typeof SOURCES)[number];
+/**
+ * The sources this app ships adapters for. Used only for labels and defaults —
+ * never for validation. Any tool may announce itself with an id of its own.
+ */
+export const BUILTIN_SOURCES = [
+  'cursor',
+  'vscode-copilot',
+  'jetbrains',
+  'claude-code',
+  'demo',
+] as const;
+export type BuiltinSourceId = (typeof BUILTIN_SOURCES)[number];
+
+/** A source id is a machine handle, so it has no room for a path or a sentence. */
+export const SOURCE_ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
+export type SourceId = string;
+
+/**
+ * How much the adapter actually knows. An `exact` adapter was told by an API;
+ * a `heuristic` one inferred the turn from a process tree or a UI, and never
+ * opens the window until the user allows that source.
+ */
+export const CONFIDENCES = ['exact', 'heuristic'] as const;
+export type Confidence = (typeof CONFIDENCES)[number];
 
 export const EVENT_NAMES = ['turn_started', 'turn_progress', 'turn_ended'] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -29,6 +51,7 @@ export interface TurnEvent {
   event: EventName;
   outcome: Outcome | null;
   timestamp: number;
+  confidence: Confidence;
 }
 
 /** turn_id must be an opaque handle. Anything richer is a content-leak risk. */
@@ -50,8 +73,8 @@ export function sanitizeEvent(raw: unknown, now: number = Date.now()): TurnEvent
   }
   const r = raw as Record<string, unknown>;
 
-  if (!isOneOf(SOURCES, r.source)) {
-    throw new InvalidEventError(`unknown source`);
+  if (typeof r.source !== 'string' || !SOURCE_ID_RE.test(r.source)) {
+    throw new InvalidEventError('source must be an id matching [a-z0-9][a-z0-9-]{0,31}');
   }
   if (!isOneOf(EVENT_NAMES, r.event)) {
     throw new InvalidEventError(`unknown event`);
@@ -76,12 +99,19 @@ export function sanitizeEvent(raw: unknown, now: number = Date.now()): TurnEvent
 
   const ts = typeof r.timestamp === 'number' && Number.isFinite(r.timestamp) ? r.timestamp : now;
 
+  let confidence: Confidence = 'exact';
+  if (r.confidence !== undefined && r.confidence !== null && r.confidence !== '') {
+    if (!isOneOf(CONFIDENCES, r.confidence)) throw new InvalidEventError('unknown confidence');
+    confidence = r.confidence;
+  }
+
   return {
     source: r.source,
     turn_id: r.turn_id,
     event: r.event,
     outcome,
     timestamp: ts,
+    confidence,
   };
 }
 

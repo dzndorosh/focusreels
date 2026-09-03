@@ -58,6 +58,7 @@ describe('EventBroker', () => {
       }) + '\n',
     );
     expect(Object.keys(received[0]!).sort()).toEqual([
+      'confidence',
       'event',
       'outcome',
       'source',
@@ -79,7 +80,7 @@ describe('EventBroker', () => {
 
   it('drops junk without crashing', async () => {
     await write('not json\n');
-    await write(JSON.stringify({ source: 'ghost', turn_id: 'x', event: 'turn_started' }) + '\n');
+    await write(JSON.stringify({ source: 'Ghost', turn_id: 'x', event: 'turn_started' }) + '\n');
     expect(received).toHaveLength(0);
     expect(rejected).toHaveLength(2);
     expect(broker.stats.rejected).toBe(2);

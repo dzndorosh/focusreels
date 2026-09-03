@@ -4,9 +4,10 @@ import { InvalidEventError, sanitizeEvent, turnKey } from '../src/core/events.js
 const base = { source: 'cursor', turn_id: 'abc-123', event: 'turn_started', timestamp: 42 };
 
 describe('sanitizeEvent', () => {
-  it('keeps exactly the five metadata fields', () => {
+  it('keeps exactly the six metadata fields', () => {
     const e = sanitizeEvent(base);
     expect(Object.keys(e).sort()).toEqual([
+      'confidence',
       'event',
       'outcome',
       'source',
@@ -37,12 +38,34 @@ describe('sanitizeEvent', () => {
     expect(() => sanitizeEvent({ ...base, turn_id: '' })).toThrow(InvalidEventError);
   });
 
-  it('rejects unknown sources, events and outcomes', () => {
-    expect(() => sanitizeEvent({ ...base, source: 'nano' })).toThrow(InvalidEventError);
+  it('rejects unknown events and outcomes', () => {
     expect(() => sanitizeEvent({ ...base, event: 'turn_paused' })).toThrow(InvalidEventError);
     expect(() =>
       sanitizeEvent({ ...base, event: 'turn_ended', outcome: 'exploded' }),
     ).toThrow(InvalidEventError);
+  });
+
+  it('accepts a source it has never heard of', () => {
+    const e = sanitizeEvent({ ...base, source: 'aider' });
+    expect(e.source).toBe('aider');
+  });
+
+  it('rejects a source shaped like anything but an id', () => {
+    for (const source of ['Aider', 'my agent', '../etc/passwd', '', 'a'.repeat(33), '-lead']) {
+      expect(() => sanitizeEvent({ ...base, source })).toThrow(InvalidEventError);
+    }
+  });
+
+  it('defaults confidence to exact, so today\'s adapters are unchanged', () => {
+    expect(sanitizeEvent(base).confidence).toBe('exact');
+  });
+
+  it('carries a declared heuristic confidence through', () => {
+    expect(sanitizeEvent({ ...base, confidence: 'heuristic' }).confidence).toBe('heuristic');
+  });
+
+  it('rejects a confidence it does not know', () => {
+    expect(() => sanitizeEvent({ ...base, confidence: 'probably' })).toThrow(InvalidEventError);
   });
 
   it('defaults a bare turn_ended to completed', () => {

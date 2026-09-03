@@ -16,7 +16,7 @@ import type { SourceId } from '../core/events.js';
  * process whose absence means "the agent is gone". Those turns are covered by
  * the Stop hook and, failing that, by the watchdog.
  */
-const PROCESS_HINTS: Partial<Record<SourceId, RegExp>> = {
+const PROCESS_HINTS: Record<string, RegExp> = {
   cursor: /\/Cursor\.app\//i,
   'vscode-copilot': /\/(Visual Studio Code|VSCodium|Code - Insiders)\.app\//i,
   jetbrains: /\/(IntelliJ IDEA[^/]*|WebStorm|PyCharm[^/]*|GoLand|CLion|Rider|PhpStorm|RubyMine|DataGrip|Android Studio|Fleet)\.app\//i,
