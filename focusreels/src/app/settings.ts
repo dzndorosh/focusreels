@@ -5,7 +5,8 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { BUILTIN_SOURCES, type SourceId } from '../core/events.js';
+import { BUILTIN_SOURCES, CONFIDENCES, SOURCE_ID_RE, type Confidence } from '../core/events.js';
+import type { SourcePolicy } from '../core/sourceRegistry.js';
 import {
   DEFAULT_ANCHOR,
   isAnchor,
@@ -21,8 +22,11 @@ export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type PlayerMode = 'youtube' | 'local';
 
 export interface Settings {
-  /** per-IDE switch — an off source never opens a turn */
-  enabledSources: Record<SourceId, boolean>;
+  /**
+   * Per-source policy. Any tool may appear here: an adapter that announces a
+   * source we have never seen is registered on first contact.
+   */
+  sources: Record<string, SourcePolicy>;
   /** how long the wait must last before anything appears */
   showDelayMs: number;
   /** hard stop for a turn no adapter ever closed */
@@ -64,13 +68,9 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  enabledSources: {
-    cursor: true,
-    'vscode-copilot': true,
-    jetbrains: true,
-    'claude-code': true,
-    demo: true,
-  },
+  sources: Object.fromEntries(
+    BUILTIN_SOURCES.map((s) => [s, { enabled: true, confidence: 'exact' as Confidence }]),
+  ),
   showDelayMs: 500,
   watchdogMs: 10 * 60 * 1000,
   hideMode: 'full-completion',
@@ -108,15 +108,50 @@ function coercePlacement(raw: unknown): SavedWindowPlacement {
   return placement;
 }
 
-function coerce(raw: unknown): Settings {
-  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const enabled = { ...DEFAULT_SETTINGS.enabledSources };
-  const rawEnabled = r.enabledSources as Record<string, unknown> | undefined;
-  if (rawEnabled) {
-    for (const s of BUILTIN_SOURCES) {
-      if (typeof rawEnabled[s] === 'boolean') enabled[s] = rawEnabled[s] as boolean;
+/**
+ * The file is hand-editable and may still carry the pre-registry shape, so this
+ * accepts three inputs — a `sources` object, a legacy `enabledSources` object,
+ * or neither — and always returns something the app can run on. Built-ins are
+ * re-added rather than resurrected as disabled: deleting a key should mean
+ * "forget my customisation", never "switch this off".
+ */
+function coerceSources(raw: Record<string, unknown>): Record<string, SourcePolicy> {
+  const out: Record<string, SourcePolicy> = {};
+
+  const put = (id: string, enabled: unknown, confidence: unknown): void => {
+    if (!SOURCE_ID_RE.test(id)) return;
+    out[id] = {
+      enabled: typeof enabled === 'boolean' ? enabled : true,
+      confidence: (CONFIDENCES as readonly string[]).includes(confidence as string)
+        ? (confidence as Confidence)
+        : 'exact',
+    };
+  };
+
+  const sources = raw.sources;
+  if (typeof sources === 'object' && sources !== null && !Array.isArray(sources)) {
+    for (const [id, value] of Object.entries(sources as Record<string, unknown>)) {
+      const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
+      put(id, v.enabled, v.confidence);
+    }
+  } else {
+    // Migration: a file written before the registry existed.
+    const legacy = raw.enabledSources;
+    if (typeof legacy === 'object' && legacy !== null && !Array.isArray(legacy)) {
+      for (const [id, value] of Object.entries(legacy as Record<string, unknown>)) {
+        put(id, value, 'exact');
+      }
     }
   }
+
+  for (const id of BUILTIN_SOURCES) {
+    out[id] ??= { enabled: true, confidence: 'exact' };
+  }
+  return out;
+}
+
+function coerce(raw: unknown): Settings {
+  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const num = (key: keyof Settings, lo: number, hi: number): number => {
     const v = r[key];
     return typeof v === 'number' && Number.isFinite(v)
@@ -138,7 +173,7 @@ function coerce(raw: unknown): Settings {
       : DEFAULT_SETTINGS.hideMode;
 
   return {
-    enabledSources: enabled,
+    sources: coerceSources(r),
     showDelayMs: num('showDelayMs', 0, 10_000),
     watchdogMs: num('watchdogMs', 5_000, 60 * 60_000),
     hideMode,

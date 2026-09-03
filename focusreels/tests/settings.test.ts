@@ -49,12 +49,40 @@ describe('SettingsStore', () => {
     expect(s.width).toBe(DEFAULT_SETTINGS.width);
   });
 
-  it('keeps only known sources, and only boolean values', () => {
-    write({ enabledSources: { cursor: false, jetbrains: 'maybe', hacker: true } });
+  it('migrates an old enabledSources file into sources', () => {
+    write({ enabledSources: { cursor: false, jetbrains: true } });
     const s = new SettingsStore(file).get();
-    expect(s.enabledSources.cursor).toBe(false);
-    expect(s.enabledSources.jetbrains).toBe(true); // non-boolean → default
-    expect('hacker' in s.enabledSources).toBe(false);
+    expect(s.sources.cursor).toEqual({ enabled: false, confidence: 'exact' });
+    expect(s.sources.jetbrains).toEqual({ enabled: true, confidence: 'exact' });
+    expect('enabledSources' in s).toBe(false);
+  });
+
+  it('keeps a third-party source and drops an ill-shaped one', () => {
+    write({
+      sources: {
+        aider: { enabled: true, confidence: 'exact' },
+        'chatgpt-app': { enabled: false, confidence: 'heuristic' },
+        'Not An Id': { enabled: true, confidence: 'exact' },
+        '../escape': { enabled: true, confidence: 'exact' },
+      },
+    });
+    const s = new SettingsStore(file).get();
+    expect(s.sources.aider.enabled).toBe(true);
+    expect(s.sources['chatgpt-app'].confidence).toBe('heuristic');
+    expect('Not An Id' in s.sources).toBe(false);
+    expect('../escape' in s.sources).toBe(false);
+  });
+
+  it('always keeps the built-in sources present', () => {
+    write({ sources: { aider: { enabled: true, confidence: 'exact' } } });
+    const s = new SettingsStore(file).get();
+    expect(s.sources['claude-code']).toEqual({ enabled: true, confidence: 'exact' });
+  });
+
+  it('repairs an entry with the wrong types instead of throwing', () => {
+    write({ sources: { aider: { enabled: 'yes', confidence: 'probably' } } });
+    const s = new SettingsStore(file).get();
+    expect(s.sources.aider).toEqual({ enabled: true, confidence: 'exact' });
   });
 
   it('persists an update and notifies listeners', () => {
