@@ -6,11 +6,11 @@
 import { Menu, Tray, nativeImage, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { SOURCES, type SourceId } from '../core/events.js';
+import { BUILTIN_SOURCES, type BuiltinSourceId } from '../core/events.js';
 import { mediaDir } from '../broker/paths.js';
 import type { Settings, SettingsStore } from './settings.js';
 
-const SOURCE_LABELS: Record<SourceId, string> = {
+const SOURCE_LABELS: Record<BuiltinSourceId, string> = {
   cursor: 'Cursor',
   'vscode-copilot': 'VS Code · Copilot',
   jetbrains: 'JetBrains AI',
@@ -127,7 +127,7 @@ export class TrayController {
       { type: 'separator' },
       {
         label: 'Sources',
-        submenu: SOURCES.map((source) => ({
+        submenu: BUILTIN_SOURCES.map((source) => ({
           label: SOURCE_LABELS[source],
           type: 'checkbox' as const,
           checked: s.enabledSources[source],

@@ -5,7 +5,7 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { SOURCES, type SourceId } from '../core/events.js';
+import { BUILTIN_SOURCES, type SourceId } from '../core/events.js';
 import {
   DEFAULT_ANCHOR,
   isAnchor,
@@ -113,7 +113,7 @@ function coerce(raw: unknown): Settings {
   const enabled = { ...DEFAULT_SETTINGS.enabledSources };
   const rawEnabled = r.enabledSources as Record<string, unknown> | undefined;
   if (rawEnabled) {
-    for (const s of SOURCES) {
+    for (const s of BUILTIN_SOURCES) {
       if (typeof rawEnabled[s] === 'boolean') enabled[s] = rawEnabled[s] as boolean;
     }
   }

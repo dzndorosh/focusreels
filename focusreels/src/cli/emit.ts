@@ -12,7 +12,7 @@
  */
 
 import { sendEvent } from '../broker/server.js';
-import { EVENT_NAMES, OUTCOMES, SOURCES, type Outcome } from '../core/events.js';
+import { BUILTIN_SOURCES, EVENT_NAMES, OUTCOMES, type Outcome } from '../core/events.js';
 
 interface Args {
   [key: string]: string | undefined;
@@ -90,7 +90,7 @@ const OUTCOME_ALIASES: Record<string, Outcome> = {
   failure: 'error',
 };
 
-const USAGE = `focusreels-emit --source <${SOURCES.join('|')}> --event <${EVENT_NAMES.join('|')}> --turn-id <id>
+const USAGE = `focusreels-emit --source <${BUILTIN_SOURCES.join('|')}> --event <${EVENT_NAMES.join('|')}> --turn-id <id>
                  [--outcome <${OUTCOMES.join('|')}>]
                  [--id-from-stdin <jsonField>] [--outcome-from-stdin <jsonField>]
                  [--socket <path>]`;
