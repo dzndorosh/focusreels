@@ -15,30 +15,6 @@
 
 set -u
 
-EVENT_KIND="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="${FOCUSREELS_HOME:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-EMIT="$APP_DIR/dist/cli/emit.js"
-NODE_BIN="${FOCUSREELS_NODE:-$(command -v node || echo /usr/local/bin/node)}"
-
-[ -x "$NODE_BIN" ] || exit 0
-[ -f "$EMIT" ] || exit 0
-
-IDS="session_id,sessionId"
-
-case "$EVENT_KIND" in
-  started)
-    "$NODE_BIN" "$EMIT" --source claude-code --event turn_started \
-      --id-from-stdin "$IDS" >/dev/null 2>&1
-    ;;
-  ended)
-    "$NODE_BIN" "$EMIT" --source claude-code --event turn_ended \
-      --id-from-stdin "$IDS" --outcome completed >/dev/null 2>&1
-    ;;
-  error)
-    "$NODE_BIN" "$EMIT" --source claude-code --event turn_ended \
-      --id-from-stdin "$IDS" --outcome error >/dev/null 2>&1
-    ;;
-esac
-
-exit 0
+exec /bin/sh "$SCRIPT_DIR/../shared/focusreels-hook.sh" \
+  claude-code "${1:-}" session_id,sessionId >/dev/null 2>&1

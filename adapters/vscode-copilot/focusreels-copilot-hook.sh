@@ -11,25 +11,6 @@
 
 set -u
 
-EVENT_KIND="${1:-}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="${FOCUSREELS_HOME:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-EMIT="$APP_DIR/dist/cli/emit.js"
-NODE_BIN="${FOCUSREELS_NODE:-$(command -v node || echo /usr/local/bin/node)}"
-
-[ -x "$NODE_BIN" ] || exit 0
-[ -f "$EMIT" ] || exit 0
-
-IDS="sessionId,session_id,turnId,turn_id,requestId,request_id,conversationId,conversation_id"
-
-case "$EVENT_KIND" in
-  started)
-    "$NODE_BIN" "$EMIT" --source vscode-copilot --event turn_started --id-from-stdin "$IDS"
-    ;;
-  ended)
-    "$NODE_BIN" "$EMIT" --source vscode-copilot --event turn_ended \
-      --id-from-stdin "$IDS" --outcome-from-stdin status
-    ;;
-esac
-
-exit 0
+exec /bin/sh "$SCRIPT_DIR/../shared/focusreels-hook.sh" \
+  vscode-copilot "${1:-}" sessionId,session_id,turnId,turn_id,requestId,request_id,conversationId,conversation_id status >/dev/null 2>&1

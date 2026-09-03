@@ -415,8 +415,8 @@ npm run install:cursor    # merges into ~/.cursor/hooks.json, keeps what's there
 `beforeSubmitPrompt` sends `turn_started`; `stop` sends `turn_ended` with
 `completed` / `aborted` / `error`. The hook script reads two fields out of the
 payload Cursor puts on stdin — an opaque id and a status — and forwards nothing
-else. It exits 0 on every path: a broken overlay is never a reason to break a
-prompt.
+else. It uses macOS's `plutil` and `nc -U`, not Node.js or a repository checkout,
+and exits 0 on every path: a broken overlay is never a reason to break a prompt.
 
 Restart Cursor afterwards. Field names differ between Cursor versions, so the
 script passes a list of candidates (`generation_id,conversation_id,…`) and takes
@@ -424,8 +424,10 @@ the first one present.
 
 ### VS Code + Copilot Agent — Agent Hooks (Preview)
 
-Copy `adapters/vscode-copilot/hooks.json` to `.vscode/hooks.json`, fix the paths,
-reload the window. `UserPromptSubmit` → `turn_started`, `Stop` → `turn_ended`.
+Run `npm run install:vscode-copilot`, then copy the generated
+`~/Library/Application Support/FocusReels/adapters/vscode-copilot/hooks.json`
+to `.vscode/hooks.json` (or your profile hooks file) and reload the window.
+`UserPromptSubmit` → `turn_started`, `Stop` → `turn_ended`.
 
 Agent Hooks are Preview and can be disabled by organisation policy, in which case
 they never fire. The fallback is the Accessibility adapter:
@@ -447,7 +449,8 @@ Then start a **new** agent session. Claude Code's hooks belong to the CLI, not t
 a window, so this one adapter covers the terminal, Orca, and anything else built
 on the CLI. `UserPromptSubmit` → `turn_started`, `Stop` → `completed`,
 `StopFailure` → `error`; `session_id` becomes the `turn_id` and nothing else is
-read from the payload.
+read from the payload. The installer copies its hooks into Application Support,
+so they do not depend on the checkout after installation.
 
 Claude Code allows several hooks per event, so an existing Orca or corporate hook
 is left untouched. Details in `adapters/claude-code/README.md`.
@@ -504,8 +507,6 @@ Useful when testing, or when running a second instance beside a live one.
 | `FOCUSREELS_MEDIA_DIR` | clip folder for this run |
 | `FOCUSREELS_DEBUG` | logs bounds, visibility and every morph transition |
 | `FOCUSREELS_ANIM_LAB` | adds the Animation Lab panel (development only) |
-| `FOCUSREELS_HOME` | where the hook scripts look for `dist/cli/emit.js` |
-| `FOCUSREELS_NODE` | Node binary the hook scripts use, when it is not on `PATH` |
 
 Running `npm start` twice is refused: the second instance sees a live socket and
 exits with `FocusReels is already running`.

@@ -36,15 +36,16 @@ and everything already registered — an Orca install, a corporate hook, your ow
 is left untouched. The installer is idempotent (running it three times still
 leaves one hook) and `--uninstall` restores the file exactly as it was.
 
-A backup is written to `~/.claude/settings.json.focusreels.bak` on every run, and
-a settings file that does not parse is refused rather than overwritten.
+The installed scripts live in
+`~/Library/Application Support/FocusReels/adapters`, not in the checkout. A
+settings file that does not parse is refused rather than overwritten.
 
 ## Two rules the hook script obeys
 
 Both are about never disturbing the agent:
 
-1. **Exit 0 on every path.** A failing hook can block a prompt. Missing Node,
-   missing build, app not running — all exit 0, silently.
+1. **Exit 0 on every path.** A failing hook can block a prompt. A missing socket,
+   unavailable system tool, or app that is not running all exit 0, silently.
 2. **Print nothing to stdout.** On `UserPromptSubmit`, a hook's stdout is
    injected into the model's context. A stray line would literally appear inside
    your conversation, so every call is redirected to `/dev/null`.

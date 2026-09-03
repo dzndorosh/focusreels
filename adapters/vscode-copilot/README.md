@@ -16,12 +16,19 @@ built around both:
 
 ## Install (hooks path)
 
-Copy `hooks.json` into either:
+Run the installer first:
+
+```bash
+npm run install:vscode-copilot
+```
+
+Then copy its generated `hooks.json` from
+`~/Library/Application Support/FocusReels/adapters/vscode-copilot/` into either:
 
 - the workspace: `.vscode/hooks.json`, or
 - your user profile hooks file, if your VS Code build exposes one.
 
-Point the `command` at wherever you cloned FocusReels, then reload the window.
+Reload the window. The command points to the installed adapter, not a clone.
 Verify: run `npm start`, send a long prompt in Copilot chat, and the overlay
 should appear after ~500 ms.
 
