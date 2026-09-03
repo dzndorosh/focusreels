@@ -12,7 +12,14 @@
  */
 
 import { sendEvent } from '../broker/server.js';
-import { BUILTIN_SOURCES, EVENT_NAMES, OUTCOMES, type Outcome } from '../core/events.js';
+import {
+  BUILTIN_SOURCES,
+  CONFIDENCES,
+  EVENT_NAMES,
+  OUTCOMES,
+  SOURCE_ID_RE,
+  type Outcome,
+} from '../core/events.js';
 
 interface Args {
   [key: string]: string | undefined;
@@ -90,10 +97,15 @@ const OUTCOME_ALIASES: Record<string, Outcome> = {
   failure: 'error',
 };
 
-const USAGE = `focusreels-emit --source <${BUILTIN_SOURCES.join('|')}> --event <${EVENT_NAMES.join('|')}> --turn-id <id>
+const USAGE = `focusreels-emit --source <id> --event <${EVENT_NAMES.join('|')}> --turn-id <id>
+                 [--confidence ${CONFIDENCES.join('|')}]
                  [--outcome <${OUTCOMES.join('|')}>]
                  [--id-from-stdin <jsonField>] [--outcome-from-stdin <jsonField>]
-                 [--socket <path>]`;
+                 [--socket <path>]
+
+--source is any id matching [a-z0-9][a-z0-9-]{0,31}; built-ins: ${BUILTIN_SOURCES.join(', ')}.
+--confidence heuristic marks a guessed turn; such a source stays off until the
+user enables it in the menu bar.`;
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -109,6 +121,15 @@ async function main(): Promise<void> {
     process.stderr.write(USAGE + '\n');
     return; // still exit 0 — a broken hook config must not break the IDE
   }
+
+  if (!SOURCE_ID_RE.test(source)) {
+    // Still exit 0 — the contract with the IDE is that this never fails — but
+    // say why, because the only person who sees it is the adapter's author.
+    process.stderr.write(`focusreels-emit: invalid --source "${source}"\n${USAGE}\n`);
+    return;
+  }
+
+  const confidence = args.confidence === 'heuristic' ? 'heuristic' : 'exact';
 
   let turnId = args['turn-id'] ? toOpaqueId(args['turn-id']) : null;
   let outcome = args.outcome ?? null;
@@ -150,6 +171,7 @@ async function main(): Promise<void> {
     event,
     outcome: event === 'turn_ended' ? (outcome ?? 'completed') : null,
     timestamp: Date.now(),
+    confidence,
   }, args.socket);
 }
 
