@@ -42,33 +42,28 @@ An adapter may send exactly this, and nothing else:
 
 ## The YouTube feed
 
-Install, add a key, and the first turn already has something to watch.
+**You do not need an API key.** The app fetches a catalog that is rebuilt daily
+by [a GitHub Action](.github/workflows/youtube-catalog.yml) and published to
+GitHub Pages, so a fresh install has something to watch on its first turn.
 
-### Getting a key
+    https://dzndorosh.github.io/focusreels/catalog/youtube-catalog.json
 
-```bash
-cp .env.example .env      # then paste your key into it — .env is gitignored
-```
+If that fetch fails — you are offline, or Pages is down — the app falls back to
+the catalog bundled in this repository, and then to your own local clips.
 
-Create the key at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-with **YouTube Data API v3** enabled. Without one the app still runs and falls
-back to Demo mode (below).
+### Where the maintainer key lives, and why it cannot leak
 
-### Where the key lives, and why it cannot leak
+You do not configure a key in the desktop app. `YOUTUBE_API_KEY` is used only
+by the maintainer's catalog-collection commands and the GitHub Actions secret;
+the installed app receives only the finished public catalog.
 
-- It is read in the **main process only** (`src/youtube/env.ts`), from
-  `YOUTUBE_API_KEY` — a real environment variable, then `.env` beside the app,
-  then one in the support directory.
 - The renderer's entire view of the world is `window.feed` from a
   `contextBridge` preload: `next`, `peek`, `refresh`, `status`, `close`,
-  `setMuted`. It receives finished `FeedVideo` objects and cannot reach the key,
-  the network, or the filesystem. `contextIsolation: true`, `nodeIntegration:
-  false`.
-- Errors never carry the request URL, because the URL carries the key. The
-  startup log prints `present (38 chars)` — never the value.
-- `npm run build` runs `scripts/check-no-key.mjs`, which greps every renderer
-  asset for the configured key *and* for anything shaped like a Google key, and
-  fails the build if it finds one.
+  `setMuted`. It receives finished `FeedVideo` objects and cannot reach the
+  maintainer key, the network, or the filesystem. `contextIsolation: true`,
+  `nodeIntegration: false`.
+- `npm run build` runs `scripts/check-no-key.mjs`, which scans renderer assets
+  for the configured key and anything shaped like a Google key.
 
 ### How a queue is built
 
@@ -263,6 +258,24 @@ In the menu bar, under **Simulate**: *AI start*, *AI stop*, *Next video*,
 *Refresh feed*. Start and stop dispatch a real sanitized event into the registry,
 exactly as an IDE hook would — so they exercise what ships, not a shortcut past
 it.
+
+### Publishing the catalog (maintainers)
+
+The daily action is inert until these are set, one time:
+
+1. The repository must be **public** — GitHub Pages on a private repository
+   needs a paid plan.
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+3. **Settings → Secrets and variables → Actions → Secrets:** add
+   `YOUTUBE_API_KEY`.
+4. **Settings → Secrets and variables → Actions → Variables:** add
+   `YOUTUBE_CATALOG_AUTO_PUBLISH` with the value `true`.
+5. Run **Actions → YouTube catalog → Run workflow** once, then open the
+   published URL and confirm it serves JSON.
+
+The key lives in GitHub Secrets and on the maintainer's machine. It is never
+committed, never bundled into a build, and never sent to a user — an installed
+app only ever fetches the finished JSON.
 
 ## How it works
 
@@ -493,7 +506,6 @@ Useful when testing, or when running a second instance beside a live one.
 | `FOCUSREELS_ANIM_LAB` | adds the Animation Lab panel (development only) |
 | `FOCUSREELS_HOME` | where the hook scripts look for `dist/cli/emit.js` |
 | `FOCUSREELS_NODE` | Node binary the hook scripts use, when it is not on `PATH` |
-| `YOUTUBE_API_KEY` | the feed's key — main process only, never the renderer |
 
 Running `npm start` twice is refused: the second instance sees a live socket and
 exits with `FocusReels is already running`.

@@ -20,4 +20,6 @@ export interface FeedStatus {
   catalogSource?: 'environment' | 'development-file' | 'fixture' | 'cache' | 'remote' | null;
   totalVideos?: number;
   playableVideos?: number;
+  /** ISO timestamp the catalog itself carries, so the UI can show its age */
+  generatedAt?: string;
 }

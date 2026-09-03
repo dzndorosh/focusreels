@@ -5,11 +5,10 @@
 
 ## Problem
 
-A new user installs FocusReels and gets nothing. The feed needs a YouTube Data
-API key, `readApiKey` (`src/youtube/env.ts`) looks for it in an environment
-variable or a `.env` file, and none of those exist on a fresh machine. The
-documented remedy is a trip to the Google Cloud Console to enable YouTube Data
-API v3 and mint a key. Almost nobody does that to try a video overlay.
+A new user installs FocusReels and gets nothing. The catalog collector needs a
+YouTube Data API key, but that key belongs to the maintainer and cannot be
+present on a fresh user's machine. Requiring every person trying a video overlay
+to make their own Google Cloud project would defeat the product.
 
 The machinery to avoid this is already written and never switched on:
 
@@ -45,9 +44,10 @@ says `Feed: 0 queued` forever, whatever is actually loaded, while
 - No periodic in-app refresh timer. Refresh at startup plus the existing
   **Refresh feed** menu item is enough; a background timer is an extra moving
   part nobody asked for.
-- No change to how a *developer* supplies their own key. `YOUTUBE_API_KEY` and
-  the `.env` files keep working exactly as they do, and still win over the
-  remote catalog (`refreshRemote` returns early when `envCatalog` is set).
+- No in-app use of `YOUTUBE_API_KEY`. The desktop app has no runtime YouTube
+  Data API collector; that key belongs only to the maintainer's catalog
+  commands and GitHub Actions secret. A developer can still point a build at a
+  different finished catalog with `FOCUSREELS_REMOTE_CATALOG_URL`.
 - No new hosting infrastructure. If GitHub cannot host it, that is a separate
   decision, not this subsystem.
 
@@ -143,7 +143,7 @@ fetches a finished JSON file.
 | Catalog fetched once, then offline | The atomic on-disk cache from the last fetch. |
 | Published catalog is malformed | `fetchRemoteCatalog` rejects it and returns no catalog; the previous one stands. |
 | Every video in the catalog is dead | Playable count drops to zero and the app falls to Demo mode with its existing reason string. The daily refresh is what stops this accumulating. |
-| Developer has their own key | Unchanged: `refreshRemote` returns early, their catalog wins. |
+| Developer needs a different catalog | Set `FOCUSREELS_REMOTE_CATALOG_URL` to an HTTPS published catalog. |
 
 ## Testing
 

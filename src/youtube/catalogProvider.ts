@@ -208,6 +208,7 @@ export class CatalogProvider {
       catalogSource: total > 0 ? this.source : null,
       totalVideos: total,
       playableVideos: playable,
+      generatedAt: this.catalog.generatedAt,
     };
   }
 
