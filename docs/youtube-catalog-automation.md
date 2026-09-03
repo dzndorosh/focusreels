@@ -8,7 +8,7 @@ Run a local dry-run with `YOUTUBE_API_KEY=... npm run catalog:youtube:collect`. 
 
 Add permanent removals to `config/youtube-video-blocklist.json`. Set a source's `enabled` to `false` to pause a channel. Review `public/catalog/youtube-catalog.json` with the existing embedded-player tooling before setting repository variable `YOUTUBE_CATALOG_AUTO_PUBLISH=true`.
 
-The workflow is manual or daily. It reads the `YOUTUBE_API_KEY` Actions secret, never serializes it, uploads diagnostics, and only deploys Pages when the repository variable is enabled. The repository owner/name must be taken from `git remote -v`; no URL is hard-coded here. Set the app build/runtime variable `FOCUSREELS_REMOTE_CATALOG_URL` to the HTTPS Pages URL (for example, the repository's `/catalog/youtube-catalog.json`). Runtime accepts only HTTPS, rejects redirects, limits response size, and falls back to cache/fixture.
+The workflow is manual or daily. It reads the `YOUTUBE_API_KEY` Actions secret, never serializes it, uploads diagnostics, and only deploys Pages when the repository variable is enabled. The repository owner/name must be taken from `git remote -v`; no URL is hard-coded here. The app ships with the project's HTTPS Pages URL; `FOCUSREELS_REMOTE_CATALOG_URL` is only an optional override for a developer build. Runtime accepts only HTTPS, rejects redirects, limits response size, and falls back to cache/fixture.
 
 The public user needs no key or setup. YouTube branding and player notices remain subject to the official iframe API.
 

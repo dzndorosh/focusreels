@@ -279,7 +279,9 @@ ipcMain.on('focusreels:audio', (_event, payload: unknown) => {
 
 app.whenReady().then(async () => {
   if (process.env.NODE_ENV === 'production' || !process.env.FOCUSREELS_E2E) {
-    void catalogProvider.refreshRemote(catalogUrl());
+    // The provider changes source asynchronously. Redraw after either outcome
+    // so the tray does not keep calling a freshly fetched catalog "bundled".
+    void catalogProvider.refreshRemote(catalogUrl()).then(() => tray.refresh());
   }
   if (process.env.NODE_ENV !== 'production' && process.env.FOCUSREELS_E2E) {
     const socketPath = join(app.getPath('userData'), 'feed-e2e.sock');

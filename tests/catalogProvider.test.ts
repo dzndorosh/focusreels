@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CatalogProvider } from '../src/youtube/catalogProvider.js';
 
 const ids = (count: number) => Array.from({ length: count }, (_, i) => `video${String(i).padStart(3, '0')}`);
@@ -25,7 +25,11 @@ const drain = async (p: CatalogProvider, n: number) => { const out: (string | un
 
 describe('CatalogProvider ordering', () => {
   beforeEach(() => { delete process.env.FOCUSREELS_E2E; delete process.env.FOCUSREELS_YOUTUBE_TEST_IDS; });
-  afterEach(() => { delete process.env.FOCUSREELS_E2E_USER_DATA; delete process.env.FOCUSREELS_YOUTUBE_TEST_CATALOG_PATH; });
+  afterEach(() => {
+    delete process.env.FOCUSREELS_E2E_USER_DATA;
+    delete process.env.FOCUSREELS_YOUTUBE_TEST_CATALOG_PATH;
+    vi.restoreAllMocks();
+  });
 
   it('does not serve the catalog in file order', async () => {
     const runs = await Promise.all([drain(provider(40), 40), drain(provider(40), 40), drain(provider(40), 40)]);
@@ -70,5 +74,25 @@ describe('CatalogProvider ordering', () => {
     });
 
     expect((await p.next())?.id).toBeTruthy();
+  });
+
+  it('reports a remote catalog after a successful refresh', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'focusreels-provider-'));
+    const remote = catalog(2);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(remote), { headers: { etag: '"catalog-v1"' } }),
+    );
+    const p = new CatalogProvider({
+      supportDirectory: dir,
+      environment: { NODE_ENV: 'test' },
+      cwd: dir,
+    });
+
+    await expect(p.refreshRemote('https://catalog.example.test/feed.json')).resolves.toBe(true);
+    expect(p.status).toMatchObject({
+      catalogSource: 'remote',
+      generatedAt: remote.generatedAt,
+      totalVideos: 2,
+    });
   });
 });

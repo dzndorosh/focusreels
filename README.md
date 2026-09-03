@@ -51,35 +51,19 @@ GitHub Pages, so a fresh install has something to watch on its first turn.
 If that fetch fails — you are offline, or Pages is down — the app falls back to
 the catalog bundled in this repository, and then to your own local clips.
 
-### Bringing your own key
+### Where the maintainer key lives, and why it cannot leak
 
-You only need a key to *build* a catalog, which is what the daily action does.
-Set one if you want the app to collect its own feed instead of using the
-published one:
+You do not configure a key in the desktop app. `YOUTUBE_API_KEY` is used only
+by the maintainer's catalog-collection commands and the GitHub Actions secret;
+the installed app receives only the finished public catalog.
 
-```bash
-cp .env.example .env      # then paste your key into it — .env is gitignored
-```
-
-Create it at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-with **YouTube Data API v3** enabled. A key set this way wins over the published
-catalog.
-
-### Where the key lives, and why it cannot leak
-
-- It is read in the **main process only** (`src/youtube/env.ts`), from
-  `YOUTUBE_API_KEY` — a real environment variable, then `.env` beside the app,
-  then one in the support directory.
 - The renderer's entire view of the world is `window.feed` from a
   `contextBridge` preload: `next`, `peek`, `refresh`, `status`, `close`,
-  `setMuted`. It receives finished `FeedVideo` objects and cannot reach the key,
-  the network, or the filesystem. `contextIsolation: true`, `nodeIntegration:
-  false`.
-- Errors never carry the request URL, because the URL carries the key. The
-  startup log prints `present (38 chars)` — never the value.
-- `npm run build` runs `scripts/check-no-key.mjs`, which greps every renderer
-  asset for the configured key *and* for anything shaped like a Google key, and
-  fails the build if it finds one.
+  `setMuted`. It receives finished `FeedVideo` objects and cannot reach the
+  maintainer key, the network, or the filesystem. `contextIsolation: true`,
+  `nodeIntegration: false`.
+- `npm run build` runs `scripts/check-no-key.mjs`, which scans renderer assets
+  for the configured key and anything shaped like a Google key.
 
 ### How a queue is built
 
@@ -522,7 +506,6 @@ Useful when testing, or when running a second instance beside a live one.
 | `FOCUSREELS_ANIM_LAB` | adds the Animation Lab panel (development only) |
 | `FOCUSREELS_HOME` | where the hook scripts look for `dist/cli/emit.js` |
 | `FOCUSREELS_NODE` | Node binary the hook scripts use, when it is not on `PATH` |
-| `YOUTUBE_API_KEY` | the feed's key — main process only, never the renderer |
 
 Running `npm start` twice is refused: the second instance sees a live socket and
 exits with `FocusReels is already running`.
