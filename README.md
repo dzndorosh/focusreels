@@ -399,6 +399,20 @@ npm test         # 124 tests: state machine, registry, events, broker, settings,
 npm run typecheck
 ```
 
+### Build a macOS app and DMG
+
+```bash
+npm run dist:mac
+```
+
+This produces an Apple Silicon `.app` and DMG in `release/`. The package includes
+the offline catalog and the adapter installer, so it does not need this checkout
+or a separately installed Node runtime after installation. It is deliberately
+**unsigned and not notarized** until a Developer ID signing/notarization setup is
+provided; macOS will require the recipient to use Finder's right-click → **Open**
+on first launch. Do not distribute it as a polished public installer until that
+credential work is complete.
+
 ---
 
 ## Connect your IDEs

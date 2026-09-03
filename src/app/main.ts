@@ -6,6 +6,7 @@
  */
 
 import { app, ipcMain, screen, session } from 'electron';
+import { spawn } from 'node:child_process';
 import { mkdirSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -47,7 +48,7 @@ const youtube = new YoutubeWindow(settings.get(), (placement) => {
   // The window is the authority on where it is; settings.json only remembers.
   settings.update({ placement });
 });
-const catalogProvider = new CatalogProvider();
+const catalogProvider = new CatalogProvider({ cwd: app.getAppPath() });
 const players = new PlayerCoordinator(
   { local: overlay, youtube },
   settings.get().player,
@@ -126,6 +127,15 @@ function simulate(event: 'turn_started' | 'turn_ended'): void {
   );
 }
 
+function installAdapter(adapter: 'cursor' | 'claude-code' | 'vscode-copilot'): void {
+  const resources = app.isPackaged ? process.resourcesPath : app.getAppPath();
+  const installer = join(resources, 'adapters', 'install.sh');
+  // The installer copies adapters into Application Support and edits only the
+  // selected tool's local hook config. It needs no user-installed Node or repo.
+  const child = spawn('/bin/sh', [installer, adapter], { detached: true, stdio: 'ignore' });
+  child.unref();
+}
+
 const tray = new TrayController({
   settings,
   activeTurns: () => registry.list().filter((t) => t.state === 'active').length,
@@ -148,6 +158,7 @@ const tray = new TrayController({
     settings.update({ sources: kept });
     sourceRegistry.clearCapRejected();
   },
+  onInstallAdapter: installAdapter,
   onQuit: () => app.quit(),
 });
 

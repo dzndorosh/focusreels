@@ -22,6 +22,7 @@ config/youtube-sources.test.json
 # macOS bundle output
 out/
 build/
+release/
 *.dmg
 
 # Personal tooling installed by the Next Move Theory installer, not part of this

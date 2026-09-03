@@ -76,6 +76,21 @@ describe('CatalogProvider ordering', () => {
     expect((await p.next())?.id).toBeTruthy();
   });
 
+  it('uses the shipped catalog on a first offline launch', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'focusreels-provider-'));
+    const path = join(dir, 'bundled.json');
+    writeFileSync(path, JSON.stringify(catalog(3)));
+
+    const p = new CatalogProvider({
+      supportDirectory: join(dir, 'support'),
+      environment: { NODE_ENV: 'production' },
+      cwd: dir,
+      fallbackCatalogPath: path,
+    });
+
+    expect(p.status).toMatchObject({ catalogSource: 'cache', totalVideos: 3, queued: 3 });
+  });
+
   it('reports a remote catalog after a successful refresh', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'focusreels-provider-'));
     const remote = catalog(2);

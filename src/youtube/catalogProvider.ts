@@ -21,6 +21,8 @@ export interface CatalogProviderOptions {
   supportDirectory?: string;
   environment?: NodeJS.ProcessEnv;
   cwd?: string;
+  /** Shipped catalog used on a first offline launch before a remote refresh. */
+  fallbackCatalogPath?: string;
 }
 
 function readJson(path: string): unknown | null {
@@ -99,14 +101,16 @@ export class CatalogProvider {
         : null;
     this.fileCatalog = readDevelopmentCatalog(this.environment);
     this.source = this.envCatalog ? 'environment' : this.fileCatalog ? 'development-file' : 'cache';
-    const fixture = validateCatalog(
-      readJson(join(options.cwd ?? process.cwd(), 'config/youtube-catalog.fixture.json')),
+    const root = options.cwd ?? process.cwd();
+    const bundled = validateCatalog(
+      readJson(options.fallbackCatalogPath ?? join(root, 'config/youtube-catalog.json')),
     );
+    const fixture = validateCatalog(readJson(join(root, 'config/youtube-catalog.fixture.json')));
     this.catalog =
       this.envCatalog ??
       this.fileCatalog ??
       loadCatalog({
-        fallback: fixture ?? EMPTY_CATALOG,
+        fallback: bundled ?? fixture ?? EMPTY_CATALOG,
         cacheFile: join(this.directory, 'youtube-catalog.json'),
       });
 
