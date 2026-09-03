@@ -15,6 +15,7 @@ import { EventBroker } from '../broker/server.js';
 import { mediaDir } from '../broker/paths.js';
 import { TurnRegistry, type RegistryConfig } from '../core/turnRegistry.js';
 import { sanitizeEvent, type SourceId } from '../core/events.js';
+import { SourceRegistry } from '../core/sourceRegistry.js';
 import { IdeWatcher } from './ideWatcher.js';
 import { playlist } from './mediaLibrary.js';
 import { OverlayWindow, type OverlayStatus } from './overlayWindow.js';
@@ -55,13 +56,18 @@ let e2eHoldOpen = false;
 
 const registryConfig = (): RegistryConfig => {
   const s = settings.get();
-  return {
-    showDelayMs: s.showDelayMs,
-    watchdogMs: s.watchdogMs,
-    hideMode: s.hideMode,
-    enabledSources: s.enabledSources,
-  };
+  return { showDelayMs: s.showDelayMs, watchdogMs: s.watchdogMs, hideMode: s.hideMode };
 };
+
+const sourceRegistry = new SourceRegistry({
+  getPolicies: () => settings.get().sources,
+  onRegister: (source, policy) => {
+    // First contact from a tool we have never seen: remember it so the user can
+    // find it in the menu even when it is not currently running.
+    settings.update({ sources: { ...settings.get().sources, [source]: policy } });
+    console.log(`[focusreels] new source ${source} (${policy.confidence})`);
+  },
+});
 
 function currentStatus(): OverlayStatus | null {
   const active = registry.list().filter((t) => t.state === 'active');
@@ -78,6 +84,11 @@ function currentStatus(): OverlayStatus | null {
 
 const registry = new TurnRegistry({
   getConfig: registryConfig,
+  admitSource: (event) => sourceRegistry.admit(event),
+  onSourceBlocked: (source, reason) => {
+    console.log(`[focusreels] blocked ${source} (${reason})`);
+    tray.refresh();
+  },
   onVisibilityChange: (visible) => {
     console.log(`[focusreels] overlay ${visible ? 'show' : 'hide'}`);
     if (visible) {
@@ -118,6 +129,7 @@ const tray = new TrayController({
   settings,
   activeTurns: () => registry.list().filter((t) => t.state === 'active').length,
   feedStatus: () => ({ demoMode: false, reason: null, queued: 0 }),
+  sources: () => sourceRegistry.list(),
   onSimulateStart: () => simulate('turn_started'),
   onSimulateStop: () => simulate('turn_ended'),
   onNextVideo: () => {},

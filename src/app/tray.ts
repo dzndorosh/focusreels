@@ -6,11 +6,11 @@
 import { Menu, Tray, nativeImage, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { BUILTIN_SOURCES, type BuiltinSourceId } from '../core/events.js';
 import { mediaDir } from '../broker/paths.js';
 import type { Settings, SettingsStore } from './settings.js';
+import type { SourceInfo } from '../core/sourceRegistry.js';
 
-const SOURCE_LABELS: Record<BuiltinSourceId, string> = {
+const SOURCE_LABELS: Partial<Record<string, string>> = {
   cursor: 'Cursor',
   'vscode-copilot': 'VS Code · Copilot',
   jetbrains: 'JetBrains AI',
@@ -25,6 +25,7 @@ export interface TrayDeps {
   settings: SettingsStore;
   activeTurns: () => number;
   feedStatus: () => { demoMode: boolean; reason: string | null; queued: number };
+  sources: () => SourceInfo[];
   onSimulateStart: () => void;
   onSimulateStop: () => void;
   onNextVideo: () => void;
@@ -127,13 +128,19 @@ export class TrayController {
       { type: 'separator' },
       {
         label: 'Sources',
-        submenu: BUILTIN_SOURCES.map((source) => ({
-          label: SOURCE_LABELS[source],
+        submenu: this.deps.sources().map((info) => ({
+          // A raw id is safe to show: SOURCE_ID_RE forbids anything prose-shaped.
+          label:
+            (SOURCE_LABELS[info.source] ?? info.source) +
+            (info.confidence === 'heuristic' ? ' (guess)' : ''),
           type: 'checkbox' as const,
-          checked: s.enabledSources[source],
+          checked: info.enabled,
           click: () =>
             this.set({
-              enabledSources: { ...s.enabledSources, [source]: !s.enabledSources[source] },
+              sources: {
+                ...s.sources,
+                [info.source]: { enabled: !info.enabled, confidence: info.confidence },
+              },
             }),
         })),
       },
