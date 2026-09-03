@@ -42,17 +42,28 @@ An adapter may send exactly this, and nothing else:
 
 ## The YouTube feed
 
-Install, add a key, and the first turn already has something to watch.
+**You do not need an API key.** The app fetches a catalog that is rebuilt daily
+by [a GitHub Action](.github/workflows/youtube-catalog.yml) and published to
+GitHub Pages, so a fresh install has something to watch on its first turn.
 
-### Getting a key
+    https://dzndorosh.github.io/focusreels/catalog/youtube-catalog.json
+
+If that fetch fails — you are offline, or Pages is down — the app falls back to
+the catalog bundled in this repository, and then to your own local clips.
+
+### Bringing your own key
+
+You only need a key to *build* a catalog, which is what the daily action does.
+Set one if you want the app to collect its own feed instead of using the
+published one:
 
 ```bash
 cp .env.example .env      # then paste your key into it — .env is gitignored
 ```
 
-Create the key at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-with **YouTube Data API v3** enabled. Without one the app still runs and falls
-back to Demo mode (below).
+Create it at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+with **YouTube Data API v3** enabled. A key set this way wins over the published
+catalog.
 
 ### Where the key lives, and why it cannot leak
 
@@ -263,6 +274,24 @@ In the menu bar, under **Simulate**: *AI start*, *AI stop*, *Next video*,
 *Refresh feed*. Start and stop dispatch a real sanitized event into the registry,
 exactly as an IDE hook would — so they exercise what ships, not a shortcut past
 it.
+
+### Publishing the catalog (maintainers)
+
+The daily action is inert until these are set, one time:
+
+1. The repository must be **public** — GitHub Pages on a private repository
+   needs a paid plan.
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+3. **Settings → Secrets and variables → Actions → Secrets:** add
+   `YOUTUBE_API_KEY`.
+4. **Settings → Secrets and variables → Actions → Variables:** add
+   `YOUTUBE_CATALOG_AUTO_PUBLISH` with the value `true`.
+5. Run **Actions → YouTube catalog → Run workflow** once, then open the
+   published URL and confirm it serves JSON.
+
+The key lives in GitHub Secrets and on the maintainer's machine. It is never
+committed, never bundled into a build, and never sent to a user — an installed
+app only ever fetches the finished JSON.
 
 ## How it works
 
