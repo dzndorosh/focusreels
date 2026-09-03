@@ -23,3 +23,14 @@ config/youtube-sources.test.json
 out/
 build/
 *.dmg
+
+# Personal tooling installed by the Next Move Theory installer, not part of this
+# product. Present on disk so the agent setup keeps working; never versioned here.
+Next-Move-Theory-Canon/
+NextMoveTheory-README.md
+.nmt-version
+CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
+.superpowers/
