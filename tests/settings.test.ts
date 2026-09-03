@@ -79,6 +79,12 @@ describe('SettingsStore', () => {
     expect(s.sources['claude-code']).toEqual({ enabled: true, confidence: 'exact' });
   });
 
+  it('treats a bare boolean under sources as the enabled flag, not an inverted object', () => {
+    write({ sources: { cursor: false } });
+    const s = new SettingsStore(file).get();
+    expect(s.sources.cursor).toEqual({ enabled: false, confidence: 'exact' });
+  });
+
   it('repairs an entry with the wrong types instead of throwing', () => {
     write({ sources: { aider: { enabled: 'yes', confidence: 'probably' } } });
     const s = new SettingsStore(file).get();

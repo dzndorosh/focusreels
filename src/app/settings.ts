@@ -131,6 +131,13 @@ function coerceSources(raw: Record<string, unknown>): Record<string, SourcePolic
   const sources = raw.sources;
   if (typeof sources === 'object' && sources !== null && !Array.isArray(sources)) {
     for (const [id, value] of Object.entries(sources as Record<string, unknown>)) {
+      // A bare boolean is the old shape's shorthand for `enabled`: a user who
+      // writes `"cursor": false` means "switch it off", not "here is an empty
+      // object" — the latter reading would silently flip enabled back to true.
+      if (typeof value === 'boolean') {
+        put(id, value, undefined);
+        continue;
+      }
       const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
       put(id, v.enabled, v.confidence);
     }

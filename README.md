@@ -462,7 +462,7 @@ directly and pick **Reload settings from disk**.
 
 | Key | Default | What it does |
 |---|---|---|
-| `enabledSources` | all on | per-IDE switch; an off source never opens a turn |
+| `sources` | built-ins on | `{ "<id>": { "enabled": bool, "confidence": "exact"\|"heuristic" } }` per source, or just `{ "<id>": bool }` as shorthand for `enabled`; an off source never opens a turn — also toggled from the menu bar's Sources submenu |
 | `showDelayMs` | `500` | how long the wait must last before anything appears |
 | `hideMode` | `full-completion` | `full-completion` or `first-response` |
 | `watchdogMs` | `600000` | hard stop for a turn no adapter ever closed |
