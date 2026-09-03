@@ -390,6 +390,9 @@ npm run typecheck
 
 ## Connect your IDEs
 
+Your tool is not on this list? It does not need to be — see
+[`docs/ADAPTER-PROTOCOL.md`](docs/ADAPTER-PROTOCOL.md).
+
 ### Cursor — official Hooks
 
 ```bash
