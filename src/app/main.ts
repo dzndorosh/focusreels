@@ -129,7 +129,9 @@ function simulate(event: 'turn_started' | 'turn_ended'): void {
 const tray = new TrayController({
   settings,
   activeTurns: () => registry.list().filter((t) => t.state === 'active').length,
-  feedStatus: () => ({ demoMode: false, reason: null, queued: 0 }),
+  // The provider has always known these numbers; the tray used to show a
+  // hard-coded zero regardless of what was loaded.
+  feedStatus: () => catalogProvider.status,
   sources: () => sourceRegistry.list(),
   capRejected: () => sourceRegistry.capRejected,
   onSimulateStart: () => simulate('turn_started'),

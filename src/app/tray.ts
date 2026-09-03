@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import { mediaDir } from '../broker/paths.js';
 import type { Settings, SettingsStore } from './settings.js';
 import { MAX_SOURCES, type SourceInfo } from '../core/sourceRegistry.js';
+import { formatFeedLine } from './feedLine.js';
+import type { FeedStatus } from '../youtube/types.js';
 
 const SOURCE_LABELS: Partial<Record<string, string>> = {
   cursor: 'Cursor',
@@ -24,7 +26,7 @@ const WIDTHS = [200, 260, 320, 400];
 export interface TrayDeps {
   settings: SettingsStore;
   activeTurns: () => number;
-  feedStatus: () => { demoMode: boolean; reason: string | null; queued: number };
+  feedStatus: () => FeedStatus;
   sources: () => SourceInfo[];
   /** events refused since launch (or since last "Forget third-party sources") because the cap was full */
   capRejected: () => number;
@@ -80,10 +82,7 @@ export class TrayController {
     const s = this.deps.settings.get();
     const active = this.deps.activeTurns();
 
-    const feed = this.deps.feedStatus();
-    const feedLine = feed.demoMode
-      ? `Demo mode${feed.reason ? ` · ${feed.reason}` : ''}`
-      : `Feed: ${feed.queued} queued`;
+    const feedLine = formatFeedLine(this.deps.feedStatus(), Date.now());
 
     const menu = Menu.buildFromTemplate([
       { label: active > 0 ? `${active} turn(s) in flight` : 'Idle', enabled: false },
