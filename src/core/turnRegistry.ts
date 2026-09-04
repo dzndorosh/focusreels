@@ -56,6 +56,7 @@ interface Entry {
   hideMode: HideMode;
   showHandle: unknown;
   watchdogHandle: unknown;
+  idleHandle: unknown;
 }
 
 export interface RegistryOptions {
@@ -140,6 +141,7 @@ export class TurnRegistry {
         hideMode: this.getConfig().hideMode,
         showHandle: null,
         watchdogHandle: null,
+        idleHandle: null,
       };
       this.entries.set(key, entry);
     }
@@ -197,6 +199,18 @@ export class TurnRegistry {
       case 'cancel_watchdog':
         if (entry.watchdogHandle !== null) this.timers.clearTimeout(entry.watchdogHandle);
         entry.watchdogHandle = null;
+        break;
+      case 'arm_idle_watchdog':
+        // Re-armed on every heartbeat, so the previous one has to go first.
+        if (entry.idleHandle !== null) this.timers.clearTimeout(entry.idleHandle);
+        entry.idleHandle = this.timers.setTimeout(
+          () => this.send(entry, { kind: 'idle_watchdog' }),
+          effect.delayMs,
+        );
+        break;
+      case 'cancel_idle_watchdog':
+        if (entry.idleHandle !== null) this.timers.clearTimeout(entry.idleHandle);
+        entry.idleHandle = null;
         break;
       case 'show_overlay':
       case 'hide_overlay':

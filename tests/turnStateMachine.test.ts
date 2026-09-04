@@ -22,7 +22,11 @@ describe('TurnStateMachine', () => {
 
     const started = m.send({ kind: 'event', event: ev('turn_started') }, 0);
     expect(m.state).toBe('waiting');
-    expect(types(started.effects)).toEqual(['arm_show_timer', 'arm_watchdog']);
+    expect(types(started.effects)).toEqual([
+      'arm_show_timer',
+      'arm_watchdog',
+      'arm_idle_watchdog',
+    ]);
     expect(started.effects[0]).toMatchObject({ delayMs: 500 });
     expect(m.wantsOverlay).toBe(false);
 
@@ -44,7 +48,11 @@ describe('TurnStateMachine', () => {
     const ended = m.send({ kind: 'event', event: ev('turn_ended', 'completed') }, 320);
 
     expect(m.state).toBe('ended');
-    expect(types(ended.effects)).toEqual(['cancel_show_timer', 'cancel_watchdog']);
+    expect(types(ended.effects)).toEqual([
+      'cancel_show_timer',
+      'cancel_watchdog',
+      'cancel_idle_watchdog',
+    ]);
     expect(types(ended.effects)).not.toContain('hide_overlay');
     expect(types(ended.effects)).not.toContain('show_overlay');
   });
@@ -143,9 +151,30 @@ describe('TurnStateMachine', () => {
       m.send({ kind: 'show_timer' }, 500);
       const t = m.send({ kind: 'event', event: ev('turn_progress') }, 800);
 
-      expect(t.ignored).toBe(true);
+      // Not ignored: it is the heartbeat that pushes the silence timer back.
+      expect(types(t.effects)).toEqual(['arm_idle_watchdog']);
       expect(m.state).toBe('active');
       expect(m.wantsOverlay).toBe(true);
+    });
+
+    it('a heartbeat before the overlay is shown keeps the turn waiting', () => {
+      const m = machine({ hideMode: 'full-completion' });
+      m.send({ kind: 'event', event: ev('turn_started') }, 0);
+      const t = m.send({ kind: 'event', event: ev('turn_progress') }, 200);
+
+      expect(types(t.effects)).toEqual(['arm_idle_watchdog']);
+      expect(m.state).toBe('waiting');
+    });
+
+    it('silence ends the turn as a timeout', () => {
+      const m = machine();
+      m.send({ kind: 'event', event: ev('turn_started') }, 0);
+      m.send({ kind: 'show_timer' }, 500);
+      const t = m.send({ kind: 'idle_watchdog' }, 180_500);
+
+      expect(m.state).toBe('ended');
+      expect(m.outcome).toBe('timeout');
+      expect(types(t.effects)).toContain('hide_overlay');
     });
   });
 

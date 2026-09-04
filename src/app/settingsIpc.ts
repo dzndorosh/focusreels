@@ -9,6 +9,7 @@ export type SettingsPatch = Pick<
   | 'volume'
   | 'showDelayMs'
   | 'watchdogMs'
+  | 'idleWatchdogMs'
   | 'hideMode'
   | 'corner'
   | 'width'
@@ -32,7 +33,15 @@ const booleans = [
   'scrollToChange',
   'nineAnchors',
 ] as const;
-const numbers = ['volume', 'showDelayMs', 'watchdogMs', 'width', 'margin', 'opacity'] as const;
+const numbers = [
+  'volume',
+  'showDelayMs',
+  'watchdogMs',
+  'idleWatchdogMs',
+  'width',
+  'margin',
+  'opacity',
+] as const;
 
 export function parseSettingsPatch(value: unknown): SettingsPatch | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;

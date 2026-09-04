@@ -56,6 +56,60 @@ describe('TurnRegistry', () => {
     expect(r.size).toBe(0);
   });
 
+  it('closes a turn that went quiet, long before the absolute watchdog', () => {
+    const r = build();
+    r.dispatch(ev('cursor', 't1', 'turn_started'));
+    timers.advance(500);
+    expect(r.visible).toBe(true);
+
+    // No heartbeat, no close: the Stop hook never fired.
+    timers.advance(config.idleWatchdogMs);
+    expect(r.visible).toBe(false);
+    expect(r.size).toBe(0);
+    expect(timers.pending).toBe(0);
+  });
+
+  it('lets a heartbeat push the silence timer back indefinitely', () => {
+    const r = build();
+    r.dispatch(ev('cursor', 't1', 'turn_started'));
+    timers.advance(500);
+
+    // A genuinely long turn: quiet for most of the window, then a sign of life.
+    for (let i = 0; i < 3; i += 1) {
+      timers.advance(config.idleWatchdogMs - 1000);
+      r.dispatch(ev('cursor', 't1', 'turn_progress'));
+      expect(r.visible).toBe(true);
+    }
+
+    // Still bounded by the absolute watchdog, which has now been passed.
+    timers.advance(config.watchdogMs);
+    expect(r.visible).toBe(false);
+  });
+
+  it('a heartbeat cannot resurrect a turn that already ended', () => {
+    const r = build();
+    r.dispatch(ev('cursor', 't1', 'turn_started'));
+    timers.advance(500);
+    r.dispatch(ev('cursor', 't1', 'turn_ended', 'completed'));
+    r.dispatch(ev('cursor', 't1', 'turn_progress'));
+
+    expect(r.visible).toBe(false);
+    expect(r.size).toBe(0);
+    expect(timers.pending).toBe(0);
+  });
+
+  it('still hides on the first response when asked to', () => {
+    config = { ...config, hideMode: 'first-response' };
+    const r = build();
+    r.dispatch(ev('cursor', 't1', 'turn_started'));
+    timers.advance(500);
+    expect(r.visible).toBe(true);
+
+    r.dispatch(ev('cursor', 't1', 'turn_progress'));
+    expect(r.visible).toBe(false);
+    expect(r.size).toBe(0);
+  });
+
   it('keeps the overlay up until the LAST parallel turn ends', () => {
     const r = build();
     r.dispatch(ev('cursor', 'a', 'turn_started'));

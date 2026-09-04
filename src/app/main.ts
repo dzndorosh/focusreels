@@ -5,7 +5,7 @@
  * src/core, which knows nothing about Electron and is covered by the tests.
  */
 
-import { app, ipcMain, screen, session, shell } from 'electron';
+import { app, ipcMain, powerMonitor, screen, session, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { mkdirSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -62,7 +62,12 @@ let e2eHoldOpen = false;
 
 const registryConfig = (): RegistryConfig => {
   const s = settings.get();
-  return { showDelayMs: s.showDelayMs, watchdogMs: s.watchdogMs, hideMode: s.hideMode };
+  return {
+    showDelayMs: s.showDelayMs,
+    watchdogMs: s.watchdogMs,
+    idleWatchdogMs: s.idleWatchdogMs,
+    hideMode: s.hideMode,
+  };
 };
 
 const sourceRegistry = new SourceRegistry({
@@ -372,6 +377,17 @@ app.whenReady().then(async () => {
   screen.on('display-removed', reconcile);
   screen.on('display-added', reconcile);
   screen.on('display-metrics-changed', reconcile);
+
+  // Sleep is the one gap no adapter can close. Timers do not run while the
+  // machine is asleep, so a turn that was open when the lid closed is still
+  // open on wake — and its watchdogs have not aged a second. Without this, an
+  // agent that finished (or died) hours ago puts a video on screen the moment
+  // the display comes back. Closing on the way down and on the way up costs at
+  // most a missed overlay, which is the cheap direction of this trade.
+  const closeOpenTurns = () => registry.cancelAll('ide_closed');
+  powerMonitor.on('suspend', closeOpenTurns);
+  powerMonitor.on('resume', closeOpenTurns);
+  powerMonitor.on('lock-screen', closeOpenTurns);
 
   const fs = catalogProvider.status;
   if (process.env.FOCUSREELS_DEBUG_FEED) console.log(`[feed] catalog loaded provider=${fs.provider} source=${fs.catalogSource} total=${fs.totalVideos ?? 0}`);

@@ -31,6 +31,12 @@ export interface Settings {
   showDelayMs: number;
   /** hard stop for a turn no adapter ever closed */
   watchdogMs: number;
+  /**
+   * Hard stop for a turn that stopped showing signs of life. Short, because a
+   * live turn keeps pushing it back with `turn_progress`; it only fires when
+   * the close event genuinely never arrived.
+   */
+  idleWatchdogMs: number;
   hideMode: HideMode;
   muted: boolean;
   /** 0…1, remembered across turns so the user sets it once */
@@ -73,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ),
   showDelayMs: 500,
   watchdogMs: 10 * 60 * 1000,
+  idleWatchdogMs: 3 * 60 * 1000,
   hideMode: 'full-completion',
   muted: true,
   volume: 0.6,
@@ -183,6 +190,7 @@ function coerce(raw: unknown): Settings {
     sources: coerceSources(r),
     showDelayMs: num('showDelayMs', 0, 10_000),
     watchdogMs: num('watchdogMs', 5_000, 60 * 60_000),
+    idleWatchdogMs: num('idleWatchdogMs', 5_000, 60 * 60_000),
     hideMode,
     muted: bool('muted'),
     volume: num('volume', 0, 1),

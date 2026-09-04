@@ -25,12 +25,22 @@ export interface MachineConfig {
   showDelayMs: number;
   /** give up on a turn that never closes */
   watchdogMs: number;
+  /**
+   * Give up on a turn that has gone *quiet*. The absolute watchdog has to be
+   * generous — a real agent turn can legitimately run for minutes — which makes
+   * it useless for the common failure: the close event never arrived (the agent
+   * was interrupted, the hook host died, the socket blinked). A turn whose
+   * adapter keeps sending `turn_progress` is demonstrably alive, so silence for
+   * this long is the honest signal that it is not.
+   */
+  idleWatchdogMs: number;
   hideMode: HideMode;
 }
 
 export const DEFAULT_MACHINE_CONFIG: MachineConfig = {
   showDelayMs: 500,
   watchdogMs: 10 * 60 * 1000,
+  idleWatchdogMs: 3 * 60 * 1000,
   hideMode: 'full-completion',
 };
 
@@ -40,6 +50,8 @@ export type MachineInput =
   | { kind: 'show_timer' }
   /** the watchdog elapsed */
   | { kind: 'watchdog' }
+  /** no sign of life from this turn for `idleWatchdogMs` */
+  | { kind: 'idle_watchdog' }
   /** user hit cancel / IDE quit / app is shutting down */
   | { kind: 'cancel'; outcome: Extract<Outcome, 'aborted' | 'ide_closed'> };
 
@@ -48,6 +60,9 @@ export type Effect =
   | { type: 'cancel_show_timer' }
   | { type: 'arm_watchdog'; delayMs: number }
   | { type: 'cancel_watchdog' }
+  /** (re)start the silence timer — every heartbeat pushes it back */
+  | { type: 'arm_idle_watchdog'; delayMs: number }
+  | { type: 'cancel_idle_watchdog' }
   | { type: 'show_overlay' }
   | { type: 'hide_overlay' };
 
@@ -117,7 +132,11 @@ export class TurnStateMachine {
 
   private end(outcome: Outcome, now: number, wasVisible: boolean): Transition {
     this._endedAt = now;
-    const effects: Effect[] = [{ type: 'cancel_show_timer' }, { type: 'cancel_watchdog' }];
+    const effects: Effect[] = [
+      { type: 'cancel_show_timer' },
+      { type: 'cancel_watchdog' },
+      { type: 'cancel_idle_watchdog' },
+    ];
     if (wasVisible) effects.push({ type: 'hide_overlay' });
     return { state: 'ended', effects, outcome, ignored: false };
   }
@@ -133,7 +152,7 @@ export class TurnStateMachine {
       return this.end(input.outcome, now, s === 'active');
     }
 
-    if (input.kind === 'watchdog') {
+    if (input.kind === 'watchdog' || input.kind === 'idle_watchdog') {
       if (s !== 'waiting' && s !== 'active') return NOOP(s, this._outcome);
       return this.end('timeout', now, s === 'active');
     }
@@ -158,6 +177,7 @@ export class TurnStateMachine {
         effects: [
           { type: 'arm_show_timer', delayMs: this.config.showDelayMs },
           { type: 'arm_watchdog', delayMs: this.config.watchdogMs },
+          { type: 'arm_idle_watchdog', delayMs: this.config.idleWatchdogMs },
         ],
         outcome: null,
         ignored: false,
@@ -165,11 +185,19 @@ export class TurnStateMachine {
     }
 
     if (name === 'turn_progress') {
+      if (s !== 'waiting' && s !== 'active') return NOOP(s, this._outcome);
       // The agent produced something. In 'first-response' mode that is the
       // moment the user's attention is worth something again.
-      if (this.config.hideMode !== 'first-response') return NOOP(s, this._outcome);
-      if (s !== 'waiting' && s !== 'active') return NOOP(s, this._outcome);
-      return this.end('completed', now, s === 'active');
+      if (this.config.hideMode === 'first-response') return this.end('completed', now, s === 'active');
+      // Otherwise it is a heartbeat: proof the turn is alive, so the silence
+      // timer starts over. This is what lets that timer be short enough to be
+      // useful without cutting a legitimately long turn short.
+      return {
+        state: s,
+        effects: [{ type: 'arm_idle_watchdog', delayMs: this.config.idleWatchdogMs }],
+        outcome: null,
+        ignored: false,
+      };
     }
 
     // turn_ended
