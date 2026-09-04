@@ -36,6 +36,7 @@ export interface TrayDeps {
   onRefreshFeed: () => void;
   onForgetThirdPartySources: () => void;
   onInstallAdapter: (adapter: 'cursor' | 'claude-code' | 'vscode-copilot') => void;
+  onOpenSettings: () => void;
   onQuit: () => void;
 }
 
@@ -212,6 +213,7 @@ export class TrayController {
         })),
       },
       { type: 'separator' },
+      { label: 'Open Settings…', click: () => this.deps.onOpenSettings() },
       { label: 'Open media folder…', click: () => void shell.openPath(mediaDir()) },
       {
         label: 'Install adapters',

@@ -5,7 +5,7 @@
  * src/core, which knows nothing about Electron and is covered by the tests.
  */
 
-import { app, ipcMain, screen, session } from 'electron';
+import { app, ipcMain, screen, session, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import { mkdirSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -21,6 +21,9 @@ import { IdeWatcher } from './ideWatcher.js';
 import { playlist } from './mediaLibrary.js';
 import { OverlayWindow, type OverlayStatus } from './overlayWindow.js';
 import { SettingsStore } from './settings.js';
+import { SettingsWindow } from './settingsWindow.js';
+import { parseSettingsPatch } from './settingsIpc.js';
+import { enableDesktopApp } from './appMode.js';
 import { TrayController } from './tray.js';
 import { CatalogProvider } from '../youtube/catalogProvider.js';
 import { catalogUrl } from '../youtube/catalogUrl.js';
@@ -34,15 +37,16 @@ if (process.env.NODE_ENV !== 'production' && process.env.FOCUSREELS_E2E_USER_DAT
   if (e2ePath.startsWith('/') && !e2ePath.includes('..')) app.setPath('userData', e2ePath);
 }
 
-// A menu-bar utility: no dock icon, and activating it never steals focus.
-app.dock?.hide();
-app.setActivationPolicy?.('accessory');
+// The video surfaces are non-activating themselves, but FocusReels is a normal
+// desktop app: users can return to its Settings window from the Dock.
+enableDesktopApp(app);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
 
 const settings = new SettingsStore();
+const settingsWindow = new SettingsWindow();
 const overlay = new OverlayWindow(settings.get());
 const youtube = new YoutubeWindow(settings.get(), (placement) => {
   // The window is the authority on where it is; settings.json only remembers.
@@ -159,6 +163,7 @@ const tray = new TrayController({
     sourceRegistry.clearCapRejected();
   },
   onInstallAdapter: installAdapter,
+  onOpenSettings: () => settingsWindow.show(),
   onQuit: () => app.quit(),
 });
 
@@ -191,6 +196,7 @@ async function shutdown(): Promise<void> {
   youtube.destroy();
   ideWatcher.stop();
   tray.destroy();
+  settingsWindow.destroy();
   await broker.stop();
   e2eServer?.close();
 }
@@ -199,7 +205,15 @@ settings.onChange((s) => {
   overlay.applySettings(s);
   youtube.applySettings(s);
   players.switchTo(s.player, registry.visible, currentStatus());
+  settingsWindow.push(s);
 });
+
+ipcMain.handle('focusreels:settings:get', () => settings.get());
+ipcMain.handle('focusreels:settings:update', (_event, value: unknown) => {
+  const patch = parseSettingsPatch(value);
+  return patch ? settings.update(patch) : settings.get();
+});
+ipcMain.handle('focusreels:settings:open-file', () => shell.openPath(settings.path));
 
 ipcMain.handle('focusreels:playlist', () => playlist());
 
@@ -364,8 +378,10 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  // The overlay closing is normal; the app lives in the menu bar.
+  // Closing Settings is not quitting: the menu bar controller stays available.
 });
+
+app.on('activate', () => settingsWindow.show());
 
 app.on('before-quit', (event) => {
   if (cleanedUp) return; // the second pass, after cleanup finished
