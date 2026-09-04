@@ -12,4 +12,4 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 exec /bin/sh "$SCRIPT_DIR/../shared/focusreels-hook.sh" \
-  cursor "${1:-}" generation_id,generationId,conversation_id,conversationId status >/dev/null 2>&1
+  cursor "${1:-}" conversation_id,conversationId,generation_id,generationId status >/dev/null 2>&1

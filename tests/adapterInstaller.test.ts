@@ -57,7 +57,20 @@ describe('adapter installer', () => {
 
     const settings = readJson(paths.claudeSettings);
     expect(settings.hooks.Stop[0].hooks[0].command).toBe('/usr/local/bin/other-hook');
-    for (const event of ['UserPromptSubmit', 'Stop', 'StopFailure']) {
+    // All five: without Notification/PostToolUse the app cannot tell "thinking"
+    // from "parked on a permission prompt", and without SessionEnd a vanished
+    // session leaves a turn open until a watchdog fires.
+    for (const event of [
+      'UserPromptSubmit',
+      'PreToolUse',
+      'PostToolUse',
+      'PostToolUseFailure',
+      'SubagentStart',
+      'Notification',
+      'Stop',
+      'StopFailure',
+      'SessionEnd',
+    ]) {
       const ours = settings.hooks[event].flatMap((group: any) => group.hooks)
         .filter((hook: any) => hook.command.includes('focusreels-claude-hook.sh'));
       expect(ours).toHaveLength(1);
@@ -87,12 +100,17 @@ describe('adapter installer', () => {
     expect(second.status, second.stderr).toBe(0);
     const cursor = readJson(paths.cursorHooks);
     expect(cursor.hooks.stop).toContainEqual({ command: '/usr/local/bin/other-hook' });
-    for (const event of ['beforeSubmitPrompt', 'stop']) {
+    for (const event of ['beforeSubmitPrompt', 'afterFileEdit', 'stop']) {
       expect(cursor.hooks[event].filter((hook: any) => hook.command.includes('focusreels-cursor-hook.sh'))).toHaveLength(1);
     }
 
     expect(install('vscode-copilot', 'install', paths).status).toBe(0);
     const vscode = readJson(join(paths.adapterHome, 'vscode-copilot', 'hooks.json'));
+    // Names verified against the hook enum in the installed VS Code agent host,
+    // which has no Notification event — hence no pause signal for Copilot.
+    for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd']) {
+      expect(vscode.hooks[event][0].command).toContain('focusreels-copilot-hook.sh');
+    }
     expect(vscode.hooks.UserPromptSubmit[0].command).toContain(paths.adapterHome);
     expect(vscode.hooks.UserPromptSubmit[0].command).not.toContain('node');
   });

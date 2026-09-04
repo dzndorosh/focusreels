@@ -28,6 +28,36 @@ exists, so nothing on the network can reach it.
 Every other key is discarded. `sanitizeEvent` rebuilds the event field by field,
 so an extra key cannot survive even if you send one.
 
+## Send `turn_progress`. It is not optional in practice.
+
+The app has to answer one question — *is the agent thinking right now?* — and
+`turn_started` / `turn_ended` alone answer it badly, because the failure that
+matters is a `turn_ended` that never arrives (the agent was interrupted, the
+hook host died, the socket blinked). The only defence against that is a timeout,
+and a timeout long enough not to cut a legitimately long turn short is far too
+long to sit through.
+
+`turn_progress` breaks the trade-off. Send one whenever you have proof the turn
+is still alive — a tool ran, a chunk of output landed — and it pushes the
+silence timer back (`idleWatchdogMs`, 3 minutes by default). A turn that keeps
+its heartbeat can run for as long as the absolute watchdog allows; a turn that
+goes quiet is closed in minutes rather than tens of minutes.
+
+In `first-response` hide mode the same event means "the wait is over" and closes
+the turn instead. Both readings are the same claim: the agent produced
+something.
+
+## Model a pause as an end, then re-open
+
+An agent that stops to ask the human something — a permission prompt, a
+question — is **not thinking**, and leaving the overlay up over the exact moment
+someone has to read and answer is worse than never showing it at all.
+
+So send `turn_ended` when the agent parks, and a fresh `turn_started` (same
+`turn_id` is fine — the key is released the moment a turn ends) when it starts
+working again. The bundled hook runtime does this with a marker file; see
+`adapters/shared/focusreels-hook.sh`.
+
 ## What you must not send
 
 No prompt, no response, no code, no file path, no project name, no window title.
@@ -61,18 +91,34 @@ emit "$SESSION" turn_started
 emit "$SESSION" turn_ended
 ```
 
-Or use the bundled CLI, which never fails and never prints to stdout:
+Or use the bundled emitter, which needs no Node and no checkout, never fails,
+and never prints to stdout — so it is safe to call from a hook whose output the
+agent itself reads:
 
 ```sh
-node /path/to/focusreels/dist/cli/emit.js \
-  --source my-agent --event turn_started --turn-id "$SESSION"
+EMIT="$HOME/Library/Application Support/FocusReels/adapters/generic/focusreels-emit.sh"
+
+sh "$EMIT" my-agent started  "$SESSION"
+sh "$EMIT" my-agent progress "$SESSION"   # any sign of life; repeat freely
+sh "$EMIT" my-agent paused   "$SESSION"   # parked on a question for the human
+sh "$EMIT" my-agent ended    "$SESSION"
 ```
+
+The `turn-id` argument is optional: omit it and the tool gets a single lane,
+which is what a CLI running one request at a time wants.
+
+This is how you wire a tool this project ships no adapter for — Codex, Gemini
+CLI, aider, a wrapper of your own. Point its notify/hook/callback mechanism at
+the emitter and everything downstream behaves exactly as it does for the
+bundled adapters, including the menu-bar switch that appears the first time your
+source is seen.
 
 ## Rules the app enforces
 
 - A `turn_started` is shown only after the show delay (500 ms by default), so a
   fast answer never flashes a window.
-- A turn nobody closes is closed by a watchdog after 10 minutes.
+- A turn nobody closes is closed by a watchdog after 10 minutes — or after 3
+  minutes of silence, whichever comes first. Heartbeats reset the second one.
 - At most 64 distinct sources are ever registered in total, five of which are
   the built-ins — so third-party adapters share a budget of 59. Do not
   generate a fresh `source` per run — that is what `turn_id` is for.

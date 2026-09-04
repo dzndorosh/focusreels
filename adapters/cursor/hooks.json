@@ -4,6 +4,9 @@
     "beforeSubmitPrompt": [
       { "command": "$HOME/.focusreels/adapters/cursor/focusreels-cursor-hook.sh started" }
     ],
+    "afterFileEdit": [
+      { "command": "$HOME/.focusreels/adapters/cursor/focusreels-cursor-hook.sh progress" }
+    ],
     "stop": [
       { "command": "$HOME/.focusreels/adapters/cursor/focusreels-cursor-hook.sh ended" }
     ]

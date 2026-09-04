@@ -3,14 +3,44 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "name": "focusreels-start",
+        "name": "focusreels-started",
         "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh started"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "name": "focusreels-progress-pre",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh progress"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "name": "focusreels-progress-post",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh progress"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "name": "focusreels-progress-subagent",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh progress"
       }
     ],
     "Stop": [
       {
         "name": "focusreels-stop",
         "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh ended"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "name": "focusreels-session-end",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh ended"
+      }
+    ],
+    "ErrorOccurred": [
+      {
+        "name": "focusreels-error",
+        "command": "${userHome}/.focusreels/adapters/vscode-copilot/focusreels-copilot-hook.sh error"
       }
     ]
   }
