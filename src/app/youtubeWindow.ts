@@ -664,7 +664,7 @@ export class YoutubeWindow {
       },
     });
 
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.setAlwaysOnTop(this.settings.alwaysOnTop, 'screen-saver', 1);
     win.setHasShadow(false);
     // The transparent work-area stage must never swallow IDE clicks. `forward`
     // keeps mousemove flowing to the renderer so it can opt back in above the
@@ -781,7 +781,7 @@ export class YoutubeWindow {
     else this.pending = status;
 
     if (!win.isVisible()) win.showInactive();
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.setAlwaysOnTop(this.settings.alwaysOnTop, 'screen-saver', 1);
   }
 
   updateStatus(status: PlayerStatus): void {
@@ -798,6 +798,7 @@ export class YoutubeWindow {
     this.settings = settings;
     const win = this.win;
     if (!win || win.isDestroyed()) return;
+    win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver', 1);
     // This window is placed by its anchor, not by the overlay's corner setting;
     // a placement written by us is already applied, so re-reading it here would
     // only fight an animation in flight.

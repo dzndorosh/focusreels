@@ -49,7 +49,7 @@ export class OverlayWindow {
       // the overlay is a "first mouse". Without this the system swallows them
       // all as activation clicks and no control ever fires.
       acceptFirstMouse: true,
-      alwaysOnTop: true,
+      alwaysOnTop: this.settings.alwaysOnTop,
       backgroundColor: '#00000000',
       webPreferences: {
         preload: join(__dirname, 'preload.js'),
@@ -62,7 +62,7 @@ export class OverlayWindow {
 
     // Above normal windows and above fullscreen apps, without being a window
     // the user can tab to.
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.setAlwaysOnTop(this.settings.alwaysOnTop, 'screen-saver', 1);
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setIgnoreMouseEvents(this.settings.clickThrough, { forward: true });
     win.setOpacity(this.settings.opacity);
@@ -158,7 +158,7 @@ export class OverlayWindow {
     // showInactive, never show(): show() would activate the app and pull focus
     // away from the editor the user is still typing in.
     if (!win.isVisible()) win.showInactive();
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.setAlwaysOnTop(this.settings.alwaysOnTop, 'screen-saver', 1);
     if (process.env.FOCUSREELS_DEBUG) {
       console.log('[overlay] bounds', JSON.stringify(win.getBounds()),
         'visible', win.isVisible(), 'opacity', win.getOpacity());
@@ -182,6 +182,10 @@ export class OverlayWindow {
     this.settings = settings;
     const win = this.win;
     if (!win || win.isDestroyed()) return;
+
+    if (settings.alwaysOnTop !== previous.alwaysOnTop) {
+      win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver', 1);
+    }
 
     if (settings.width !== previous.width) {
       win.setBounds({

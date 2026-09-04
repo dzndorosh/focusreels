@@ -22,6 +22,8 @@ export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type PlayerMode = 'youtube' | 'local';
 
 export interface Settings {
+  /** Master switch: no new turn may open a player while this is off. */
+  enabled: boolean;
   /**
    * Per-source policy. Any tool may appear here: an adapter that announces a
    * source we have never seen is registered on first contact.
@@ -39,6 +41,10 @@ export interface Settings {
   idleWatchdogMs: number;
   hideMode: HideMode;
   muted: boolean;
+  /** Keep the video surface above other windows when it is visible. */
+  alwaysOnTop: boolean;
+  /** Ask macOS to reopen FocusReels when the user signs in. */
+  launchAtLogin: boolean;
   /** 0…1, remembered across turns so the user sets it once */
   volume: number;
   corner: Corner;
@@ -74,6 +80,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  enabled: true,
   sources: Object.fromEntries(
     BUILTIN_SOURCES.map((s) => [s, { enabled: true, confidence: 'exact' as Confidence }]),
   ),
@@ -82,6 +89,8 @@ export const DEFAULT_SETTINGS: Settings = {
   idleWatchdogMs: 3 * 60 * 1000,
   hideMode: 'full-completion',
   muted: true,
+  alwaysOnTop: true,
+  launchAtLogin: false,
   volume: 0.6,
   corner: 'bottom-right',
   width: 260,
@@ -187,12 +196,15 @@ function coerce(raw: unknown): Settings {
       : DEFAULT_SETTINGS.hideMode;
 
   return {
+    enabled: bool('enabled'),
     sources: coerceSources(r),
     showDelayMs: num('showDelayMs', 0, 10_000),
     watchdogMs: num('watchdogMs', 5_000, 60 * 60_000),
     idleWatchdogMs: num('idleWatchdogMs', 5_000, 60 * 60_000),
     hideMode,
     muted: bool('muted'),
+    alwaysOnTop: bool('alwaysOnTop'),
+    launchAtLogin: bool('launchAtLogin'),
     volume: num('volume', 0, 1),
     corner,
     width: num('width', 160, 640),

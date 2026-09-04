@@ -81,6 +81,16 @@ const sourceRegistry = new SourceRegistry({
   },
 });
 
+function applyLoginItemSetting(enabled: boolean): void {
+  try {
+    app.setLoginItemSettings({ openAtLogin: enabled });
+  } catch (err) {
+    // Login Items can be unavailable in development or restricted by macOS.
+    // Keep the preference and retry it at the next application start.
+    console.warn('[focusreels] could not update launch-at-login:', (err as Error).message);
+  }
+}
+
 function currentStatus(): OverlayStatus | null {
   const active = registry.list().filter((t) => t.state === 'active');
   if (active.length === 0) return null;
@@ -98,7 +108,13 @@ const turnLog = new TurnLog(turnLogPath());
 
 const registry = new TurnRegistry({
   getConfig: registryConfig,
-  admitSource: (event) => sourceRegistry.admit(event),
+  admitSource: (event) => {
+    const verdict = sourceRegistry.admit(event);
+    // Still admit into SourceRegistry while disabled: source discovery and a
+    // close for an already-open turn must continue working. TurnRegistry lets
+    // that existing close through while refusing a new start.
+    return settings.get().enabled ? verdict : { allowed: false, reason: 'disabled' };
+  },
   onSourceBlocked: (source, reason) => {
     console.log(`[focusreels] blocked ${source} (${reason})`);
     tray.refresh();
@@ -213,10 +229,12 @@ async function shutdown(): Promise<void> {
 }
 
 settings.onChange((s) => {
+  if (!s.enabled) registry.cancelAll('aborted');
   overlay.applySettings(s);
   youtube.applySettings(s);
   players.switchTo(s.player, registry.visible, currentStatus());
   settingsWindow.push(s);
+  applyLoginItemSetting(s.launchAtLogin);
 });
 
 ipcMain.handle('focusreels:settings:get', () => settings.get());
@@ -363,6 +381,7 @@ app.whenReady().then(async () => {
   });
   mkdirSync(mediaDir(), { recursive: true });
   settings.save(); // materialise the file on first run so it is editable
+  applyLoginItemSetting(settings.get().launchAtLogin);
 
   try {
     await broker.start();

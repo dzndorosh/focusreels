@@ -40,6 +40,14 @@ describe('SettingsStore', () => {
     expect(s.margin).toBe(0);
   });
 
+  it('keeps the restored application-level preferences', () => {
+    write({ enabled: false, alwaysOnTop: false, launchAtLogin: true });
+    const s = new SettingsStore(file).get();
+    expect(s.enabled).toBe(false);
+    expect(s.alwaysOnTop).toBe(false);
+    expect(s.launchAtLogin).toBe(true);
+  });
+
   it('rejects values of the wrong type and unknown enum members', () => {
     write({ muted: 'yes', corner: 'middle', hideMode: 'whenever', width: 'big' });
     const s = new SettingsStore(file).get();

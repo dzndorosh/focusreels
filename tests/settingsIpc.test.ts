@@ -3,8 +3,11 @@ import { parseSettingsPatch } from '../src/app/settingsIpc.js';
 
 describe('Settings window IPC validation', () => {
   it('keeps only known, well-formed settings fields', () => {
-    expect(parseSettingsPatch({ muted: false, width: 320, regionCode: 'by', secret: 'nope' })).toEqual({
+    expect(parseSettingsPatch({ enabled: false, muted: false, alwaysOnTop: false, launchAtLogin: true, width: 320, regionCode: 'by', secret: 'nope' })).toEqual({
+      enabled: false,
       muted: false,
+      alwaysOnTop: false,
+      launchAtLogin: true,
       width: 320,
       regionCode: 'BY',
     });

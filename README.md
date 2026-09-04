@@ -571,7 +571,10 @@ directly and pick **Reload settings from disk**.
 | `hideMode` | `full-completion` | `full-completion` or `first-response` |
 | `watchdogMs` | `600000` | hard stop for a turn no adapter ever closed |
 | `idleWatchdogMs` | `180000` | hard stop for a turn that stopped sending `turn_progress` — the practical defence against a lost close event |
+| `enabled` | `true` | master switch; off immediately closes current turns and prevents new ones from opening a player |
 | `muted` | `true` | audio; the overlay's mute button writes here |
+| `alwaysOnTop` | `true` | keeps the video surface above ordinary windows while it is visible |
+| `launchAtLogin` | `false` | asks macOS to start FocusReels after sign-in |
 | `volume` | `0.6` | 0…1, set by the overlay's volume slider |
 | `clickThrough` | `true` | overlay is invisible to mouse and keyboard |
 | `swipe` | `true` | swipe/scroll to change clip; costs click-through while hovering |
@@ -585,6 +588,12 @@ directly and pick **Reload settings from disk**.
 | `opacity` | `1` | window opacity |
 
 A settings change applies to the **next** turn, never to a running one.
+
+### Audio coexistence diagnostic
+
+`npm run diagnose:audio` reports whether macOS says the default output device
+is active. It is deliberately diagnostic-only: that signal cannot identify the
+application producing audio, so it must not silently mute or unmute FocusReels.
 
 ### Environment variables
 

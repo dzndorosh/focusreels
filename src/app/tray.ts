@@ -96,6 +96,13 @@ export class TrayController {
     const brokenHooks = brokenHooksLine(findBrokenHooks());
 
     const menu = Menu.buildFromTemplate([
+      {
+        label: 'FocusReels enabled',
+        type: 'checkbox',
+        checked: s.enabled,
+        click: () => this.set({ enabled: !s.enabled }),
+      },
+      { type: 'separator' },
       { label: active > 0 ? `${active} turn(s) in flight` : 'Idle', enabled: false },
       // How the mechanic has actually been performing, not how it is meant to.
       { label: formatSummary(this.deps.turnSummary()), enabled: false },
@@ -124,6 +131,12 @@ export class TrayController {
         type: 'checkbox',
         checked: s.muted,
         click: () => this.set({ muted: !s.muted }),
+      },
+      {
+        label: 'Keep video on top',
+        type: 'checkbox',
+        checked: s.alwaysOnTop,
+        click: () => this.set({ alwaysOnTop: !s.alwaysOnTop }),
       },
       {
         label: 'Click-through (ignore mouse)',

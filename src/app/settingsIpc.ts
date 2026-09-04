@@ -5,7 +5,10 @@ import type { HideMode } from '../core/turnStateMachine.js';
 export type SettingsPatch = Pick<
   Settings,
   | 'player'
+  | 'enabled'
   | 'muted'
+  | 'alwaysOnTop'
+  | 'launchAtLogin'
   | 'volume'
   | 'showDelayMs'
   | 'watchdogMs'
@@ -27,7 +30,10 @@ const players = new Set<PlayerMode>(['youtube', 'local']);
 const hideModes = new Set<HideMode>(['first-response', 'full-completion']);
 
 const booleans = [
+  'enabled',
   'muted',
+  'alwaysOnTop',
+  'launchAtLogin',
   'clickThrough',
   'swipe',
   'scrollToChange',
