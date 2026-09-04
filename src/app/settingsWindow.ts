@@ -28,14 +28,18 @@ export class SettingsWindow {
 
   private create(): BrowserWindow {
     const win = new BrowserWindow({
-      title: 'FocusReels Settings',
-      width: 560,
-      height: 700,
-      minWidth: 460,
-      minHeight: 520,
+      title: 'FocusReels',
+      width: 500,
+      height: 680,
+      minWidth: 500,
+      minHeight: 680,
+      maxWidth: 500,
+      maxHeight: 680,
+      titleBarStyle: 'hiddenInset',
       show: false,
+      resizable: false,
       autoHideMenuBar: true,
-      backgroundColor: '#141416',
+      backgroundColor: '#4a4a4a',
       webPreferences: {
         preload: join(__dirname, 'settingsPreload.js'),
         contextIsolation: true,
@@ -43,12 +47,13 @@ export class SettingsWindow {
         sandbox: false,
       },
     });
+    win.setAlwaysOnTop(true, 'screen-saver', 1);
     win.setMenuBarVisibility(false);
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.on('closed', () => {
       if (this.win === win) this.win = null;
     });
-    void win.loadFile(join(__dirname, 'renderer', 'settings.html'));
+    void win.loadFile(join(__dirname, 'renderer', 'control-center.html'));
     this.win = win;
     return win;
   }

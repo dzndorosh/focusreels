@@ -20,7 +20,7 @@ chain and transferred only where they were absent and still safe:
 | Launch at login | Restored as an explicit macOS preference, off by default. |
 | Core Audio activity probe | Restored both as `npm run diagnose:audio` and as the packaged player's best-effort external-audio guard. |
 | Native scrolling | Restored from the old repository's final `ca661b7` tree, including stable adjacent players, prewarming, physical-wheel replay coverage, and the explicit legacy escape. |
-| Control Center | Superseded by the current Dock-reachable Settings window; its missing controls were added there. |
+| Control Center | Its final 500×680 interface and styling were restored from `ca661b7`; its source toggles are adapted to the current validated `sources` policy model. |
 | Automatic external-audio muting | Restored from the old repository's final player; it applies only when FocusReels itself was unmuted and resets after the session. |
 
 ## Recovery rule

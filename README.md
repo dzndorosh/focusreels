@@ -564,6 +564,11 @@ plus hysteresis plus a watchdog keep false positives down; details and tuning in
 Menu-bar item, or edit `~/Library/Application Support/FocusReels/settings.json`
 directly and pick **Reload settings from disk**.
 
+The Dock and **Open Settings…** menu item open the restored 500×680 FocusReels
+Control Center from the final pre-migration version. Its switches write through
+the current validated settings boundary; advanced fields remain available in
+the hand-editable JSON and menu-bar submenus.
+
 | Key | Default | What it does |
 |---|---|---|
 | `sources` | built-ins on | `{ "<id>": { "enabled": bool, "confidence": "exact"\|"heuristic" } }` per source, or just `{ "<id>": bool }` as shorthand for `enabled`; an off source never opens a turn — also toggled from the menu bar's Sources submenu |

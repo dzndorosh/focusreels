@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FocusReels</title>
+    <link rel="stylesheet" href="control-center.css" />
+  </head>
+  <body>
+    <main class="window">
+      <div class="brand-mark" aria-hidden="true">◉</div>
+      <h1>FocusReels ready</h1>
+      <p class="subtitle">Waiting for AI work</p>
+
+      <section class="card" aria-label="FocusReels settings">
+        <div class="row master-row">
+          <span>FocusReels</span>
+          <label class="switch"><input id="enabled" type="checkbox" /><span></span></label>
+        </div>
+        <div class="section-label">Launch for</div>
+        <label class="row"><span>Cursor</span><input class="source" data-source="cursor" type="checkbox" /></label>
+        <label class="row"><span>VS Code</span><input class="source" data-source="vscode-copilot" type="checkbox" /></label>
+        <label class="row"><span>Claude Code</span><input class="source" data-source="claude-code" type="checkbox" /></label>
+        <label class="row"><span>JetBrains AI</span><input class="source" data-source="jetbrains" type="checkbox" /></label>
+        <div class="section-label">Behavior</div>
+        <label class="row"><span>Sound</span><input id="muted" type="checkbox" /></label>
+        <label class="row"><span>Always on top</span><input id="alwaysOnTop" type="checkbox" /></label>
+        <label class="row"><span>Launch at login</span><input id="launchAtLogin" type="checkbox" /></label>
+      </section>
+
+      <p class="version">DEVELOPMENT BUILD</p>
+    </main>
+    <script src="control-center.js"></script>
+  </body>
+</html>

@@ -37,6 +37,7 @@
     "e2e:youtube:wheel": "node --experimental-strip-types scripts/youtube-wheel-e2e.ts",
     "diagnose:wheel:hardware": "node --experimental-strip-types scripts/diagnose-wheel-hardware.ts",
     "check:native-rollout": "node scripts/check-native-rollout.mjs",
+    "check:control-center": "node scripts/check-control-center.mjs",
     "pack:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
     "dist:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64"
   },

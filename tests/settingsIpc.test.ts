@@ -17,4 +17,17 @@ describe('Settings window IPC validation', () => {
     expect(parseSettingsPatch({ player: 'something-else', muted: 'false' })).toBeNull();
     expect(parseSettingsPatch(['muted'])).toBeNull();
   });
+
+  it('validates source policies from the restored Control Center', () => {
+    expect(parseSettingsPatch({
+      sources: {
+        cursor: { enabled: false, confidence: 'exact' },
+        'third-party': { enabled: true, confidence: 'heuristic' },
+        '../escape': { enabled: true, confidence: 'exact' },
+      },
+    })?.sources).toEqual({
+      cursor: { enabled: false, confidence: 'exact' },
+      'third-party': { enabled: true, confidence: 'heuristic' },
+    });
+  });
 });
