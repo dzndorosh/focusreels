@@ -24,13 +24,3 @@ out/
 build/
 release/
 *.dmg
-
-# Personal tooling installed by the Next Move Theory installer, not part of this
-# product. Present on disk so the agent setup keeps working; never versioned here.
-Next-Move-Theory-Canon/
-NextMoveTheory-README.md
-.nmt-version
-CLAUDE.md
-.claude/
-.agents/
-.superpowers/

@@ -1,5 +1,5 @@
 // tsc only emits .ts; the renderer and the tray icon just get copied.
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +8,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const from = join(root, 'src', 'app', 'renderer');
 const to = join(root, 'dist', 'app', 'renderer');
 
+// This directory contains static renderer assets only. Recreate it so a file
+// removed from source cannot survive in dist and silently ship in later DMGs.
+rmSync(to, { recursive: true, force: true });
 mkdirSync(to, { recursive: true });
-for (const file of ['player.html', 'player.js', 'youtube.html', 'youtube.js', 'wheelGesture.js', 'nativeFeed.js', 'control-center.html', 'control-center.css', 'control-center.js', 'settings.html', 'settings.js']) {
+for (const file of ['player.html', 'player.js', 'youtube.html', 'youtube.js', 'wheelGesture.js', 'nativeFeed.js', 'control-center.html', 'control-center.css', 'control-center.js']) {
   cpSync(join(from, file), join(to, file));
 }
 
