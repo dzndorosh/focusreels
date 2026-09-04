@@ -21,4 +21,6 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      # The doctor test runs the built CLI, because what ships is the built CLI.
+      - run: npm run build
       - run: npm test

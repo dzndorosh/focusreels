@@ -10,6 +10,8 @@ import { mediaDir } from '../broker/paths.js';
 import type { Settings, SettingsStore } from './settings.js';
 import { MAX_SOURCES, type SourceInfo } from '../core/sourceRegistry.js';
 import { formatFeedLine } from './feedLine.js';
+import { formatSourceLine } from './sourceLine.js';
+import { brokenHooksLine, findBrokenHooks } from './hookHealth.js';
 import type { FeedStatus } from '../youtube/types.js';
 
 const SOURCE_LABELS: Partial<Record<string, string>> = {
@@ -85,6 +87,10 @@ export class TrayController {
     const active = this.deps.activeTurns();
 
     const feedLine = formatFeedLine(this.deps.feedStatus(), Date.now());
+    // Re-read on every render rather than once at startup: the user fixes this
+    // by running the installer, and the menu is where they look to confirm it
+    // worked.
+    const brokenHooks = brokenHooksLine(findBrokenHooks());
 
     const menu = Menu.buildFromTemplate([
       { label: active > 0 ? `${active} turn(s) in flight` : 'Idle', enabled: false },
@@ -130,14 +136,20 @@ export class TrayController {
         click: () => this.set({ swipe: !s.swipe }),
       },
       { type: 'separator' },
+      ...(brokenHooks
+        ? [
+            // Deliberately at the top and disabled: it is not a setting, it is
+            // the app admitting that a source cannot possibly be working.
+            { label: brokenHooks, enabled: false },
+            { type: 'separator' as const },
+          ]
+        : []),
       {
         label: 'Sources',
         submenu: [
           ...this.deps.sources().map((info) => ({
             // A raw id is safe to show: SOURCE_ID_RE forbids anything prose-shaped.
-            label:
-              (SOURCE_LABELS[info.source] ?? info.source) +
-              (info.confidence === 'heuristic' ? ' (guess)' : ''),
+            label: formatSourceLine(info, SOURCE_LABELS[info.source] ?? info.source, Date.now()),
             type: 'checkbox' as const,
             checked: info.enabled,
             // Read settings fresh here rather than closing over `s`: a source can

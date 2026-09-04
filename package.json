@@ -13,6 +13,7 @@
     "start": "npm run build && electron .",
     "demo": "npm run build && node dist/cli/demo.js",
     "emit": "node dist/cli/emit.js",
+    "doctor": "node dist/cli/doctor.js",
     "ax:build": "swift build -c release --package-path adapters/ax",
     "install:cursor": "bash adapters/install.sh cursor",
     "uninstall:cursor": "bash adapters/install.sh cursor uninstall",
