@@ -12,6 +12,7 @@ import { MAX_SOURCES, type SourceInfo } from '../core/sourceRegistry.js';
 import { formatFeedLine } from './feedLine.js';
 import { formatSourceLine } from './sourceLine.js';
 import { brokenHooksLine, findBrokenHooks } from './hookHealth.js';
+import { formatSummary, type Summary } from './turnLog.js';
 import type { FeedStatus } from '../youtube/types.js';
 
 const SOURCE_LABELS: Partial<Record<string, string>> = {
@@ -30,6 +31,8 @@ export interface TrayDeps {
   activeTurns: () => number;
   feedStatus: () => FeedStatus;
   sources: () => SourceInfo[];
+  turnSummary: () => Summary;
+  turnLogPath: string;
   /** events refused since launch (or since last "Forget third-party sources") because the cap was full */
   capRejected: () => number;
   onSimulateStart: () => void;
@@ -94,6 +97,8 @@ export class TrayController {
 
     const menu = Menu.buildFromTemplate([
       { label: active > 0 ? `${active} turn(s) in flight` : 'Idle', enabled: false },
+      // How the mechanic has actually been performing, not how it is meant to.
+      { label: formatSummary(this.deps.turnSummary()), enabled: false },
       { label: feedLine, enabled: false },
       { type: 'separator' },
       {
@@ -227,6 +232,7 @@ export class TrayController {
       { type: 'separator' },
       { label: 'Open Settings…', click: () => this.deps.onOpenSettings() },
       { label: 'Open media folder…', click: () => void shell.openPath(mediaDir()) },
+      { label: 'Open turn log…', click: () => void shell.openPath(this.deps.turnLogPath) },
       {
         label: 'Install adapters',
         submenu: [

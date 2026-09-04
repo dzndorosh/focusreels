@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { YoutubeWindow } from './youtubeWindow.js';
 import { OVERLAY_CHANNELS } from './overlayIpc.js';
 import { EventBroker } from '../broker/server.js';
-import { mediaDir } from '../broker/paths.js';
+import { mediaDir, turnLogPath } from '../broker/paths.js';
 import { TurnRegistry, type RegistryConfig } from '../core/turnRegistry.js';
 import { BUILTIN_SOURCES, sanitizeEvent, type SourceId } from '../core/events.js';
 import { SourceRegistry } from '../core/sourceRegistry.js';
@@ -25,6 +25,7 @@ import { SettingsWindow } from './settingsWindow.js';
 import { parseSettingsPatch } from './settingsIpc.js';
 import { enableDesktopApp } from './appMode.js';
 import { TrayController } from './tray.js';
+import { TurnLog } from './turnLog.js';
 import { CatalogProvider } from '../youtube/catalogProvider.js';
 import { catalogUrl } from '../youtube/catalogUrl.js';
 import { PlayerCoordinator } from './playerCoordinator.js';
@@ -93,6 +94,8 @@ function currentStatus(): OverlayStatus | null {
   };
 }
 
+const turnLog = new TurnLog(turnLogPath());
+
 const registry = new TurnRegistry({
   getConfig: registryConfig,
   admitSource: (event) => sourceRegistry.admit(event),
@@ -111,7 +114,8 @@ const registry = new TurnRegistry({
     }
     tray.refresh();
   },
-  onTurnChange: () => {
+  onTurnChange: (info) => {
+    turnLog.observe(info);
     players.updateStatus(currentStatus());
     tray.refresh();
   },
@@ -152,6 +156,8 @@ const tray = new TrayController({
   // hard-coded zero regardless of what was loaded.
   feedStatus: () => catalogProvider.status,
   sources: () => sourceRegistry.list(),
+  turnSummary: () => turnLog.summary(),
+  turnLogPath: turnLogPath(),
   capRejected: () => sourceRegistry.capRejected,
   onSimulateStart: () => simulate('turn_started'),
   onSimulateStop: () => simulate('turn_ended'),

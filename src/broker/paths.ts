@@ -24,6 +24,10 @@ export function settingsPath(): string {
   return join(supportDir(), 'settings.json');
 }
 
+export function turnLogPath(): string {
+  return join(supportDir(), 'turns.jsonl');
+}
+
 export function mediaDir(): string {
   const override = process.env.FOCUSREELS_MEDIA_DIR;
   if (override && override.length > 0) return override;

@@ -291,7 +291,15 @@ idle ──turn_started──► waiting ──after showDelay──► active �
   turn is `active`. That is what makes parallel turns work — two IDEs running at
   once produce one overlay, and it drops only when the last of them finishes.
 - Every turn ends, one way or another: `turn_ended`, user cancel, IDE quit
-  (detected within 5 s by process name), or the watchdog at 10 minutes.
+  (detected within 5 s by process name), the watchdog at 10 minutes, or — far
+  more often the one that matters — 3 minutes with no sign of life.
+- **A turn also ends when the agent stops to ask you something.** A permission
+  prompt means the agent is waiting, not thinking, so the overlay comes down
+  and goes back up when work resumes. Adapters signal this by closing the turn
+  and opening a new one.
+- **`turn_progress` is the heartbeat.** Every one of them pushes the 3-minute
+  silence timer back, which is what lets that timer be short enough to catch a
+  `turn_ended` that never arrived without cutting a long turn short.
 
 The whole decision layer (`src/core/`) is pure TypeScript with no Electron and no
 I/O — which is why it is the part that is tested.
@@ -330,6 +338,7 @@ focusreels/
 │  ├─ cursor/                # official Hooks
 │  ├─ claude-code/           # Claude Code hooks — covers Orca too
 │  ├─ vscode-copilot/        # Agent Hooks (Preview) + fallback
+│  ├─ generic/               # one-line emitter for any other tool
 │  └─ ax/                    # Swift: macOS Accessibility adapter
 ├─ tests/                    # vitest
 └─ media/                    # your vertical clips
@@ -458,8 +467,81 @@ on the CLI. `UserPromptSubmit` → `turn_started`, `Stop` → `completed`,
 read from the payload. The installer copies its hooks into Application Support,
 so they do not depend on the checkout after installation.
 
+Seven hooks are installed, not two, because two cannot answer *is the agent
+thinking right now?*:
+
+| Hook | Means |
+|---|---|
+| `UserPromptSubmit` | the turn started |
+| `PreToolUse` | a tool is about to run — keeps a six-minute test suite from reading as silence |
+| `PostToolUse` | still alive — resets the silence timer, and resumes after a pause |
+| `Notification` | parked on a permission prompt or a question: **waiting for you, not thinking** |
+| `Stop` | finished |
+| `StopFailure` | failed |
+| `SessionEnd` | the session went away without ever sending `Stop` |
+
+`session_id` becomes the `turn_id` and nothing else is read from the payload.
+The installer copies its hooks into Application Support, so they do not depend on
+the checkout after installation.
+
 Claude Code allows several hooks per event, so an existing Orca or corporate hook
 is left untouched. Details in `adapters/claude-code/README.md`.
+
+### Check that it actually works
+
+```bash
+npm run doctor
+```
+
+The installer can only report what it wrote. `doctor` reads the hook commands
+that are *actually in your config files*, checks each script exists, then runs
+one of them against a socket of its own and shows the event that came out:
+
+```
+✓ FocusReels is running
+✓ claude-code: 9 hook(s), and UserPromptSubmit really emits — {"source":"claude-code",…}
+✗ claude-code · Stop: runs a script that does not exist — /old/path/focusreels-claude-hook.sh
+  → fix with `npm run install:claude`, then start a new session
+```
+
+This exists because of a failure that went unnoticed for a long time: the
+installer wrote a path that later stopped existing, printed "Installed", and
+left. The agent then printed a hook error on every prompt — into an interface
+this app cannot see — while the menu bar showed a confident tick. The app now
+runs the same check at startup and puts a warning at the top of its menu.
+
+### Watch how it has been performing
+
+Every finished turn is appended to
+`~/Library/Application Support/FocusReels/turns.jsonl` — when it ended, which
+source, the outcome, how long it lasted, and whether the overlay was ever
+actually on screen. No turn id, no content.
+
+The menu bar summarises the last 24 hours (`42 turn(s) in 24h · 31 shown · 2
+timed out · median 8.4s`), and **Open turn log…** opens the file. `timed out` is
+the number worth watching: it counts turns nobody closed, which is the app
+getting the moment wrong rather than an agent finishing.
+
+### Any other agent — Codex, Gemini CLI, aider, your own script
+
+Nothing here is a list you have to be on: the app validates a source id by
+*shape*, and a source it has never seen registers itself the first time it
+speaks, with its own switch in the menu bar. So a tool this project ships no
+adapter for is one line away:
+
+```bash
+EMIT="$HOME/Library/Application Support/FocusReels/adapters/generic/focusreels-emit.sh"
+
+sh "$EMIT" codex started   # …then your agent runs…
+sh "$EMIT" codex progress  # any sign of life; send as many as you like
+sh "$EMIT" codex paused    # it stopped to ask you something
+sh "$EMIT" codex ended
+```
+
+Point whatever your tool has — `notify`, a hook, a wrapper script — at that.
+It reads nothing from stdin, prints nothing, and always exits 0, so it is safe
+to call from a hook whose output the agent itself parses. Full contract in
+[`docs/ADAPTER-PROTOCOL.md`](docs/ADAPTER-PROTOCOL.md).
 
 ### JetBrains AI Assistant — Accessibility adapter
 
@@ -488,6 +570,7 @@ directly and pick **Reload settings from disk**.
 | `showDelayMs` | `500` | how long the wait must last before anything appears |
 | `hideMode` | `full-completion` | `full-completion` or `first-response` |
 | `watchdogMs` | `600000` | hard stop for a turn no adapter ever closed |
+| `idleWatchdogMs` | `180000` | hard stop for a turn that stopped sending `turn_progress` — the practical defence against a lost close event |
 | `muted` | `true` | audio; the overlay's mute button writes here |
 | `volume` | `0.6` | 0…1, set by the overlay's volume slider |
 | `clickThrough` | `true` | overlay is invisible to mouse and keyboard |
