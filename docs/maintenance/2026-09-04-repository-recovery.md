@@ -18,10 +18,10 @@ chain and transferred only where they were absent and still safe:
 | Master enable switch | Restored in `settings.json`, Settings, and the tray; it cancels open turns through `TurnRegistry` and refuses future starts. |
 | Always-on-top preference | Restored in `settings.json`, Settings, tray, and both player surfaces. |
 | Launch at login | Restored as an explicit macOS preference, off by default. |
-| Core Audio activity probe | Restored as `npm run diagnose:audio`, diagnostic-only. |
-| Native scrolling | Already superseded by the current scroll-to-change gesture and its tests; not duplicated. |
+| Core Audio activity probe | Restored both as `npm run diagnose:audio` and as the packaged player's best-effort external-audio guard. |
+| Native scrolling | Restored from the old repository's final `ca661b7` tree, including stable adjacent players, prewarming, physical-wheel replay coverage, and the explicit legacy escape. |
 | Control Center | Superseded by the current Dock-reachable Settings window; its missing controls were added there. |
-| Automatic external-audio muting | Not migrated. The old project's own backlog identifies its signal as unvalidated; enabling it would cause unreliable audio behaviour. |
+| Automatic external-audio muting | Restored from the old repository's final player; it applies only when FocusReels itself was unmuted and resets after the session. |
 
 ## Recovery rule
 

@@ -34,6 +34,9 @@
     "catalog:youtube:candidates": "node --experimental-strip-types scripts/catalog-youtube-candidates.ts",
     "catalog:youtube:test-collect": "node --experimental-strip-types scripts/catalog-youtube-test-collect.ts",
     "e2e:youtube": "node --experimental-strip-types scripts/youtube-e2e-driver.ts",
+    "e2e:youtube:wheel": "node --experimental-strip-types scripts/youtube-wheel-e2e.ts",
+    "diagnose:wheel:hardware": "node --experimental-strip-types scripts/diagnose-wheel-hardware.ts",
+    "check:native-rollout": "node scripts/check-native-rollout.mjs",
     "pack:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir --arm64",
     "dist:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64"
   },
@@ -41,6 +44,9 @@
     "appId": "com.dzndorosh.focusreels",
     "productName": "FocusReels",
     "asar": true,
+    "asarUnpack": [
+      "dist/native/**/*"
+    ],
     "directories": {
       "output": "release"
     },

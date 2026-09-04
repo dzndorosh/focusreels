@@ -589,11 +589,13 @@ directly and pick **Reload settings from disk**.
 
 A settings change applies to the **next** turn, never to a running one.
 
-### Audio coexistence diagnostic
+### Audio coexistence
 
 `npm run diagnose:audio` reports whether macOS says the default output device
-is active. It is deliberately diagnostic-only: that signal cannot identify the
-application producing audio, so it must not silently mute or unmute FocusReels.
+is active. The packaged app carries the same small Core Audio helper: when the
+user has enabled FocusReels sound but the output device is already active at
+the beginning of a feed session, that session starts muted. The signal is
+best-effort and cannot identify which application is producing audio.
 
 ### Environment variables
 
@@ -605,6 +607,7 @@ Useful when testing, or when running a second instance beside a live one.
 | `FOCUSREELS_MEDIA_DIR` | clip folder for this run |
 | `FOCUSREELS_DEBUG` | logs bounds, visibility and every morph transition |
 | `FOCUSREELS_ANIM_LAB` | adds the Animation Lab panel (development only) |
+| `FOCUSREELS_LEGACY_SCROLL` | set to `1` to use the pre-native player path for comparison |
 
 Running `npm start` twice is refused: the second instance sees a live socket and
 exits with `FocusReels is already running`.
@@ -621,6 +624,12 @@ They appear on hover and fade out when the pointer leaves:
   you are hovering and comes straight back.
 
 ### Swiping
+
+The restored player uses its native CSS scroll-snap feed by default, matching
+the final pre-migration implementation. It keeps stable neighbouring YouTube
+players mounted, prewarms the next one muted, and resets promoted playback to
+the beginning. `FOCUSREELS_LEGACY_SCROLL=1` retains the older animated pane
+path as an explicit escape hatch.
 
 Drag the video up for the next clip, down for the previous one — or two-finger
 scroll over it. A drag shorter than a quarter of the frame snaps back, so a

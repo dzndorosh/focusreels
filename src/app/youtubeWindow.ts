@@ -43,8 +43,11 @@ import {
 } from './spring.js';
 import type { Settings } from './settings.js';
 
+const NATIVE_SCROLL_ENABLED = process.env.FOCUSREELS_LEGACY_SCROLL !== '1';
+const NATIVE_IFRAME_HOVER = NATIVE_SCROLL_ENABLED;
+const NATIVE_CHROMELESS = NATIVE_SCROLL_ENABLED;
 export const PLAYER_WIDTH = 326;
-export const PLAYER_HEIGHT = 720;
+export const PLAYER_HEIGHT = NATIVE_SCROLL_ENABLED ? 708 : 720;
 /** The collapsed pill: a 56px circle and nothing else. */
 export const COLLAPSED_SIZE = 56;
 
@@ -70,6 +73,7 @@ export class YoutubeWindow {
   private win: BrowserWindow | null = null;
   private ready = false;
   private pending: PlayerStatus | null = null;
+  private externalAudioMuted = false;
 
   private mode: WindowMode = 'expanded';
   private anchor: WindowAnchor = DEFAULT_ANCHOR;
@@ -650,7 +654,7 @@ export class YoutubeWindow {
       // shadow and the expanded player a rounded one.
       hasShadow: true,
       skipTaskbar: true,
-      alwaysOnTop: true,
+      alwaysOnTop: this.settings.alwaysOnTop,
       // Focusable, because an embedded player has to be clickable — but shown
       // inactive, so appearing never steals the keyboard.
       focusable: true,
@@ -699,6 +703,7 @@ export class YoutubeWindow {
         traceStages: Boolean(process.env.FOCUSREELS_DEBUG),
         debugFeed: Boolean(process.env.FOCUSREELS_DEBUG_FEED),
         e2e: process.env.NODE_ENV !== 'production' && Boolean(process.env.FOCUSREELS_E2E),
+        hardwareWheelCapture: process.env.NODE_ENV !== 'production' && Boolean(process.env.FOCUSREELS_WHEEL_HARDWARE_CAPTURE),
         failIds: process.env.NODE_ENV !== 'production' ? (process.env.FOCUSREELS_YOUTUBE_FAIL_IDS ?? '') : '',
         failCode: process.env.NODE_ENV !== 'production' ? Number(process.env.FOCUSREELS_YOUTUBE_FAIL_CODE ?? 100) : 100,
       });
@@ -723,21 +728,44 @@ export class YoutubeWindow {
 
     if (process.env.FOCUSREELS_DEBUG || process.env.FOCUSREELS_DEBUG_FEED) {
       win.webContents.on('console-message', (_e, _level, message) => {
-        const isFeed = message.startsWith('[feed]') || message.startsWith('[feed-trace]');
+        const isFeed = message.startsWith('[feed]') || message.startsWith('[feed-trace]') || message.startsWith('[wheel-hardware]');
         if (process.env.FOCUSREELS_DEBUG_FEED ? isFeed : process.env.FOCUSREELS_DEBUG) console.log(message);
       });
     }
     if (process.env.NODE_ENV !== 'production' && process.env.FOCUSREELS_E2E) {
       const tracePath = join(process.env.FOCUSREELS_E2E_USER_DATA ?? '/tmp', 'feed-trace.jsonl');
+      const wheelCapturePath = join(process.env.FOCUSREELS_E2E_USER_DATA ?? '/tmp', 'wheel-hardware.jsonl');
       win.webContents.on('console-message', (_e, _level, message) => {
         if (message.startsWith('[feed-trace]')) {
           try { appendFileSync(tracePath, message.slice('[feed-trace]'.length) + '\n'); } catch { /* diagnostics only */ }
         }
+        if (process.env.FOCUSREELS_WHEEL_HARDWARE_CAPTURE && message.startsWith('[wheel-hardware]')) {
+          try { appendFileSync(wheelCapturePath, message.slice('[wheel-hardware]'.length) + '\n'); } catch { /* diagnostics only */ }
+        }
       });
     }
 
-    void win.loadFile(join(__dirname, 'renderer', 'youtube.html'));
+    void win.loadFile(join(__dirname, 'renderer', 'youtube.html'), {
+      query: {
+        nativeScroll: NATIVE_SCROLL_ENABLED ? '1' : '0',
+        nativeIframeHover: NATIVE_IFRAME_HOVER ? '1' : '0',
+        nativeChromeless: NATIVE_CHROMELESS ? '1' : '0',
+      },
+    });
     return win;
+  }
+
+  /** Development-only input path used by wheel E2E; production never calls it. */
+  sendWheel(deltaY: number, deltaX = 0): void {
+    if (process.env.NODE_ENV === 'production' || !process.env.FOCUSREELS_E2E || !this.win || this.win.isDestroyed()) return;
+    this.win.focus();
+    this.win.webContents.focus();
+    this.win.setIgnoreMouseEvents(false);
+    const bounds = this.win.getBounds();
+    const x = Math.max(1, Math.min(bounds.width - 1, bounds.width - PLAYER_WIDTH / 2));
+    const y = Math.max(1, Math.min(bounds.height - 1, bounds.height - PLAYER_HEIGHT / 2));
+    this.win.webContents.sendInputEvent({ type: 'mouseWheel', x, y, deltaY, deltaX });
+    setTimeout(() => { if (this.win && !this.win.isDestroyed()) this.win.setIgnoreMouseEvents(true, { forward: true }); }, 400);
   }
 
   private push(channel: string, payload: unknown): void {
@@ -784,12 +812,20 @@ export class YoutubeWindow {
     win.setAlwaysOnTop(this.settings.alwaysOnTop, 'screen-saver', 1);
   }
 
+  setExternalAudioMuted(muted: boolean): void {
+    this.externalAudioMuted = muted;
+    if (this.win && !this.win.isDestroyed()) {
+      this.push('settings', { muted: this.settings.muted || muted, scrollToChange: this.settings.scrollToChange });
+    }
+  }
+
   updateStatus(status: PlayerStatus): void {
     this.push('status', status);
   }
 
   hide(): void {
     this.push('hide', null);
+    this.externalAudioMuted = false;
     if (this.win && !this.win.isDestroyed() && this.win.isVisible()) this.win.hide();
   }
 
@@ -798,7 +834,6 @@ export class YoutubeWindow {
     this.settings = settings;
     const win = this.win;
     if (!win || win.isDestroyed()) return;
-    win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver', 1);
     // This window is placed by its anchor, not by the overlay's corner setting;
     // a placement written by us is already applied, so re-reading it here would
     // only fight an animation in flight.
@@ -806,8 +841,11 @@ export class YoutubeWindow {
       this.adoptPlacement(settings.placement);
       this.moveTo(this.targetBounds());
     }
+    if (previous.alwaysOnTop !== settings.alwaysOnTop) {
+      win.setAlwaysOnTop(settings.alwaysOnTop, 'screen-saver', 1);
+    }
     this.push('settings', {
-      muted: settings.muted,
+      muted: settings.muted || this.externalAudioMuted,
       scrollToChange: settings.scrollToChange,
     });
   }

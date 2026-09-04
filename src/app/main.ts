@@ -30,6 +30,7 @@ import { CatalogProvider } from '../youtube/catalogProvider.js';
 import { catalogUrl } from '../youtube/catalogUrl.js';
 import { PlayerCoordinator } from './playerCoordinator.js';
 import { FEED_CHANNELS, parseBrokenVideoId, parseFeedback } from './feedIpc.js';
+import { externalAudioIsActive } from './audioGuard.js';
 
 // Development/E2E runs must never touch the user's normal Application Support.
 // Keep this before SettingsStore is constructed, since it determines all paths.
@@ -123,6 +124,9 @@ const registry = new TurnRegistry({
     console.log(`[focusreels] overlay ${visible ? 'show' : 'hide'}`);
     if (visible) {
       const status = currentStatus();
+      if (status) {
+        youtube.setExternalAudioMuted(settings.get().muted === false && externalAudioIsActive());
+      }
       players.sync(true, status);
     } else {
       if (e2eHoldOpen) return;
@@ -350,6 +354,12 @@ app.whenReady().then(async () => {
           try {
             const command = JSON.parse(line) as { action?: string };
             if (command.action === 'next') { youtube.command('next'); socket.end(); }
+            else if (command.action === 'wheel') { youtube.sendWheel(Number((command as any).deltaY ?? 0), Number((command as any).deltaX ?? 0)); socket.end(); }
+            else if (command.action === 'wheel-capture-marker' && process.env.FOCUSREELS_WHEEL_HARDWARE_CAPTURE) {
+              const marker = String((command as any).marker ?? '').replace(/[^a-z0-9-]/gi, '').slice(0, 48);
+              if (marker) youtube.command(`wheel-capture-marker:${marker}`);
+              socket.end();
+            }
             else if (command.action === 'previous') { youtube.command('previous'); socket.end(); }
             else if (command.action === 'show') { youtube.show({ source: 'demo', startedAt: Date.now(), parallel: 1 }); socket.end(); }
             else if (command.action === 'hide') { e2eHoldOpen = false; youtube.hide(); socket.end(); }

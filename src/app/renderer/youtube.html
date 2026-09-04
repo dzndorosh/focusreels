@@ -18,7 +18,7 @@
         --ink-dim: rgba(255, 255, 255, .55);
         --chrome: #121215;
         --ease: cubic-bezier(.2, .7, .3, 1);
-        /* 326 wide at 9:16 — the rest of the 720 is the control area */
+        /* Native mode is a compact 326×708 full-frame surface. */
         --stage: 580px;
       }
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,6 +35,11 @@
         will-change: transform;
         background: #0b0b0d; border-radius: 14px;
         box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08) inset;
+      }
+      body.native-scroll #app {
+        width: 326px;
+        height: 708px;
+        border-radius: 30px;
       }
       body.collapsed #app { display: none; }
 
@@ -157,19 +162,45 @@
         position: absolute; left: 0; right: 0; top: 0; bottom: 52px; z-index: 3;
         display: none; background: transparent; cursor: default;
       }
-      body.scroll-gesture #wheelCatcher { display: none; }
+      body.scroll-gesture #wheelCatcher { display: block; }
       body.collapsed #wheelCatcher { display: none; }
 
       /* ── the player itself. Nothing of ours is ever drawn on top of it. ── */
       /* No black under the video. On a transparent window any sub-pixel seam
          at a rounded corner would reveal this layer as a dark hairline. */
       #stage { position: relative; height: var(--stage); flex: none; background: transparent; }
+      body.native-scroll #stage { height: 100%; flex: 1; }
+      #nativeDragHandle { display: none; }
+      body.native-scroll #nativeDragHandle {
+        display: block; position: absolute; z-index: 12; left: 0; right: 0; top: 0;
+        height: 40px; cursor: grab; background: transparent;
+      }
+      body.native-scroll #nativeDragHandle:active { cursor: grabbing; }
+      #nativeFeed { display: none; position: absolute; inset: 0; overflow-y: auto;
+                    overscroll-behavior: contain; scroll-snap-type: y mandatory;
+                    scrollbar-width: none; background: #0b0b0d; }
+      #nativeFeed::-webkit-scrollbar { display: none; }
+      body.native-scroll #nativeFeed { display: block; }
+      body.native-scroll #youtube-player, body.native-scroll .pane,
+      body.native-scroll #curtain, body.native-scroll #wheelCatcher { display: none; }
+      body.native-scroll #chrome { display: none; }
+      .native-slide { position: relative; width: 100%; height: 100%;
+                      scroll-snap-align: start; scroll-snap-stop: always;
+                      overflow: hidden; background: #0b0b0d; }
+      .native-player-host, .native-player-host iframe { position: absolute; inset: 0;
+                      width: 100%; height: 100%; border: 0; }
+      .native-input-surface { position: absolute; z-index: 3; inset: 0 0 52px;
+                              background: transparent; pointer-events: auto; }
+      /* Development A/B variant: let YouTube receive hover across the iframe.
+         This may give the iframe back wheel ownership, so it is never enabled
+         by default and is not a production workaround. */
+      body.native-iframe-hover .native-input-surface { pointer-events: none; }
       #youtube-player, #youtube-player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
       .pane {
-        position: absolute; inset: 0; opacity: 0; pointer-events: none;
-        transition: opacity .18s var(--ease);
+        position: absolute; inset: 0; opacity: 1; z-index: 1; pointer-events: none;
+        will-change: transform;
       }
-      .pane.on { opacity: 1; pointer-events: auto; }
+      .pane.on { z-index: 2; pointer-events: auto; }
       .pane iframe, .pane video { width: 100%; height: 100%; border: 0; display: block;
                                   background: transparent; object-fit: cover; }
       /* A hair of overscan, so rounding the clip can never expose an edge. */
@@ -237,6 +268,8 @@
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
       #row { flex: none; display: flex; align-items: center; gap: 8px; }
+      .native-only-control { display: none; }
+      body.native-scroll .native-only-control { display: inline-flex; }
 
       button {
         display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -277,6 +310,8 @@
   <body>
     <div id="app">
       <div id="stage">
+        <div id="nativeFeed" aria-label="Native vertical video feed"></div>
+        <div id="nativeDragHandle" aria-label="Move FocusReels window" role="button"></div>
         <div id="youtube-player"></div>
         <div class="pane" id="paneA"></div>
         <div class="pane" id="paneB"></div>
@@ -294,6 +329,10 @@
           <span id="badge">Demo mode</span>
         </div>
         <div id="row">
+          <button id="previous" class="native-only-control">
+            <svg viewBox="0 0 24 24"><path d="M18 5l-9 7 9 7zM5 5h3v14H5z"/></svg>
+            Previous
+          </button>
           <button id="next">
             <svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM16 5h3v14h-3z"/></svg>
             Next
@@ -348,6 +387,8 @@
         <path d="M8 5l11 7-11 7z" />
       </svg>
     </button>
+    <script src="wheelGesture.js"></script>
+    <script src="nativeFeed.js"></script>
     <script src="youtube.js"></script>
   </body>
 </html>

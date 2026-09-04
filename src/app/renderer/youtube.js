@@ -21,6 +21,7 @@ const collapseBtn = document.getElementById('collapse');
 const fab = document.getElementById('fab');
 const agentEl = document.getElementById('agent');
 const elapsedEl = document.getElementById('elapsed');
+const NATIVE_SCROLL_ENABLED = new URLSearchParams(location.search).get('nativeScroll') === '1';
 
 const ICON_MUTED = 'M11 5 6 9H3v6h3l5 4zM22 9.4 20.6 8 18 10.6 15.4 8 14 9.4l2.6 2.6L14 14.6 15.4 16 18 13.4 20.6 16 22 14.6 19.4 12z';
 const ICON_SOUND = 'M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18 5.6a9 9 0 0 1 0 12.8l-1.4-1.4a7 7 0 0 0 0-10z';
@@ -38,14 +39,36 @@ const FATAL_ERRORS = new Set([2, 5, 100, 101, 150, 153]);
 let FEED_DEBUG = Boolean(window.__FOCUSREELS_DEBUG_FEED__);
 const feedDebug = (...args) => { if (FEED_DEBUG) console.log('[feed]', ...args); };
 let traceSequence = 0;
+let hardwareWheelCapture = false;
+let hardwareWheelMarker = null;
 function trace(event, videoId, extra = {}) {
   if (!window.__FOCUSREELS_E2E__) return;
   console.log('[feed-trace]' + JSON.stringify({ sequence: ++traceSequence, timestamp: new Date().toISOString(), event, ...(videoId ? { videoId } : {}), ...extra }));
+}
+function wheelRecognizerSnapshot() {
+  return {
+    state: wheelRecognizer.state,
+    accumulated: wheelRecognizer.accumulated,
+    peakMagnitude: wheelRecognizer.peakMagnitude,
+    lastMagnitude: wheelRecognizer.lastMagnitude,
+    weakened: wheelRecognizer.weakened,
+  };
+}
+function captureHardwareWheel(payload) {
+  if (!hardwareWheelCapture) return;
+  console.log('[wheel-hardware]' + JSON.stringify(payload));
+}
+const PLAYER_STATE_NAMES = { '-1': 'UNSTARTED', 0: 'ENDED', 1: 'PLAYING', 2: 'PAUSED', 3: 'BUFFERING', 5: 'CUED' };
+function tracePlayerCommand(command, slot) { trace(command, slot.video?.id); }
+function commandMute(slot, force = false) {
+  if (slot.kind === 'yt' && slot.player) { try { slot.player.mute(); tracePlayerCommand('mute-command', slot); } catch {} }
+  const el = slot.pane.querySelector('video'); if (el) { el.muted = force ? true : muted; if (force) tracePlayerCommand('mute-command', slot); }
 }
 /** If nothing is playing by then, treat the clip as broken and move on. */
 const START_TIMEOUT_MS = 6000;
 
 let muted = true;
+let audioUnlockAllowed = false;
 let switching = false;
 let startedAt = Date.now();
 let ticker = null;
@@ -54,8 +77,8 @@ let currentStartedAt = 0;
 function reportPlayback(video, kind) { if (!video?.id) return; window.feed.reportFeedback({ videoId: video.id, category: video.category || 'other', impressions: kind === 'impression' ? 1 : 0, completedViews: kind === 'complete' ? 1 : 0, quickSkips: kind === 'quick' ? 1 : 0, lastViewedAt: new Date().toISOString() }); trace('feedback-written', video.id, { reason: kind }); }
 
 /** { pane, kind: 'yt' | 'demo', player, video } */
-let front = { pane: paneA, kind: null, player: null, video: null };
-let back = { pane: paneB, kind: null, player: null, video: null };
+let front = { pane: paneA, kind: null, player: null, video: null, ready: false, playing: false, playingReported: false, playerState: 'UNSTARTED' };
+let back = { pane: paneB, kind: null, player: null, video: null, ready: false, playing: false, playingReported: false, playerState: 'UNSTARTED' };
 
 // ── the YouTube IFrame API ─────────────────────────────────────────────────
 
@@ -75,6 +98,7 @@ function loadYouTubeApi() {
 }
 
 function clearSlot(slot) {
+  slot.generation = (slot.generation || 0) + 1;
   if (slot.player && typeof slot.player.destroy === 'function') {
     try {
       slot.player.destroy();
@@ -85,6 +109,13 @@ function clearSlot(slot) {
   slot.player = null;
   slot.kind = null;
   slot.video = null;
+  slot.ready = false;
+  slot.playing = false;
+  slot.playingReported = false;
+  slot.playerState = 'UNSTARTED';
+  slot.phase = 'empty';
+  slot.primed = false;
+  slot.primePromise = null;
   slot.pane.replaceChildren();
 }
 
@@ -94,6 +125,8 @@ function clearSlot(slot) {
  */
 async function mount(slot, video, autoplay) {
   clearSlot(slot);
+  const generation = slot.generation;
+  slot.phase = 'mounting';
   slot.video = video;
 
   if (video.source === 'demo') {
@@ -103,13 +136,23 @@ async function mount(slot, video, autoplay) {
     el.playsInline = true;
     el.preload = 'auto';
     el.addEventListener('ended', () => {
+      if (slot.generation !== generation) return;
+      slot.playerState = 'ENDED'; slot.phase = 'failed'; slot.playing = false;
       if (slot === front) void goNext();
     });
     el.addEventListener('error', () => {
+      if (slot.generation !== generation) return;
+      slot.phase = 'failed';
       if (slot === front) void goNext();
     });
+    el.addEventListener('playing', () => { if (slot.generation !== generation) return; const first = slot.playerState !== 'PLAYING'; slot.playerState = 'PLAYING'; slot.phase = slot === front ? 'playing' : (slot.primed ? 'primed' : 'ready'); slot.playing = true; if (slot !== front && first) trace('incoming-playback-ready', video.id); });
+    el.addEventListener('pause', () => { if (slot.generation !== generation) return; slot.playerState = 'PAUSED'; slot.phase = slot.primed ? 'primed' : 'paused'; slot.playing = false; });
+    el.addEventListener('waiting', () => { if (slot.generation !== generation) return; slot.playerState = 'BUFFERING'; slot.phase = 'buffering'; slot.playing = false; });
+    el.addEventListener('canplay', () => { if (slot.generation !== generation) return; slot.playerState = 'CUED'; if (!slot.primed) slot.phase = 'ready'; });
     slot.pane.appendChild(el);
     slot.kind = 'demo';
+    slot.ready = true;
+    slot.phase = 'ready';
     if (autoplay) el.play().catch(() => {});
     return;
   }
@@ -131,7 +174,10 @@ async function mount(slot, video, autoplay) {
     },
     events: {
       onReady: (event) => {
-        applyMuteTo(slot);
+        if (slot.generation !== generation || slot.video?.id !== video.id) return;
+        slot.ready = true;
+        slot.phase = 'ready';
+        commandMute(slot, true);
         trace('player-ready', video.id);
         const failIds = String(window.__FOCUSREELS_YOUTUBE_FAIL_IDS__ || '').split(',').map((x) => x.trim()).filter(Boolean);
         if (slot === front && failIds.includes(video.id)) {
@@ -141,17 +187,22 @@ async function mount(slot, video, autoplay) {
           void goNext();
           return;
         }
-        if (autoplay) event.target.playVideo();
+        if (autoplay) { tracePlayerCommand('play-command', slot); event.target.playVideo(); }
       },
       onStateChange: (event) => {
-        if (slot !== front) return;
+        if (slot.generation !== generation || slot.video?.id !== video.id) return;
+        slot.playerState = PLAYER_STATE_NAMES[event.data] || String(event.data);
+        trace('player-state', video.id, { state: slot.playerState, stateCode: event.data });
         if (event.data === YT.PlayerState.PLAYING) {
-          trace('player-playing', video.id);
-          currentStartedAt = Date.now();
-          curtain.classList.add('gone');
-          clearStartWatchdog();
+          const firstPlaying = !slot.playing;
+          slot.playing = true;
+          slot.phase = slot === front ? 'playing' : (slot.primed ? 'primed' : 'ready');
+          if (slot !== front && firstPlaying) trace('incoming-playback-ready', video.id);
+          if (slot !== front) return;
+          activatePlayingFront(slot);
         }
-        if (event.data === YT.PlayerState.ENDED) { trace('player-ended', video.id); reportPlayback(video, 'complete'); void goNext(); }
+        if (event.data !== YT.PlayerState.PLAYING) { slot.playing = false; slot.phase = PLAYER_STATE_NAMES[event.data] === 'PAUSED' ? 'paused' : PLAYER_STATE_NAMES[event.data] === 'BUFFERING' ? 'buffering' : PLAYER_STATE_NAMES[event.data] === 'ENDED' ? 'failed' : slot.phase; }
+        if (event.data === YT.PlayerState.ENDED) { if (slot !== front) return; trace('player-ended', video.id); reportPlayback(video, 'complete'); void goNext(); }
       },
       onError: (event) => {
         feedDebug('player-error', { code: event.data, videoId: video.id });
@@ -172,14 +223,33 @@ async function mount(slot, video, autoplay) {
 function applyMuteTo(slot) {
   if (slot.kind === 'yt' && slot.player) {
     try {
-      if (muted) slot.player.mute();
-      else slot.player.unMute();
+      if (muted || !audioUnlockAllowed) { slot.player.mute(); tracePlayerCommand('mute-command', slot); }
+      else { slot.player.unMute(); tracePlayerCommand('unmute-command', slot); }
     } catch {
       /* the player may not be ready yet; onReady applies it again */
     }
   }
   const el = slot.pane.querySelector('video');
-  if (el) el.muted = muted;
+  if (el) { el.muted = muted || !audioUnlockAllowed; tracePlayerCommand(el.muted ? 'mute-command' : 'unmute-command', slot); }
+}
+
+function nextAnimationFrame() { return new Promise((resolve) => requestAnimationFrame(() => resolve())); }
+function activatePlayingFront(slot) {
+  if (slot !== front || slot.playerState !== 'PLAYING') return false;
+  slot.phase = 'playing';
+  currentStartedAt = Date.now();
+  clearStartWatchdog();
+  if (!slot.playingReported) { slot.playingReported = true; trace('player-playing', slot.video?.id); }
+  if (!curtain.classList.contains('gone')) { curtain.classList.add('gone'); trace('curtain-hidden', slot.video?.id); }
+  void stabilizeVisibleFront(slot);
+  return true;
+}
+async function stabilizeVisibleFront(slot) {
+  await nextAnimationFrame(); await nextAnimationFrame();
+  if (slot !== front || slot.playerState !== 'PLAYING') return;
+  trace('incoming-frame-stable', slot.video?.id);
+  audioUnlockAllowed = true;
+  applyMuteTo(slot);
 }
 
 function renderMute() {
@@ -190,6 +260,12 @@ function renderMute() {
 
 muteBtn.addEventListener('click', () => {
   muted = !muted;
+  if (NATIVE_SCROLL_ENABLED) {
+    window.FocusReelsNativeFeed?.setMuted(muted);
+    renderMute();
+    window.feed.setMuted(muted);
+    return;
+  }
   applyMuteTo(front);
   applyMuteTo(back);
   renderMute();
@@ -199,16 +275,21 @@ muteBtn.addEventListener('click', () => {
 // ── the queue ──────────────────────────────────────────────────────────────
 
 let startWatchdog = null;
+let watchdogToken = 0;
 
 function clearStartWatchdog() {
   if (startWatchdog) clearTimeout(startWatchdog);
   startWatchdog = null;
+  watchdogToken += 1;
 }
 
-function armStartWatchdog() {
+function armStartWatchdog(slot = front) {
   clearStartWatchdog();
+  if (!slot || slot !== front || slot.playerState === 'PLAYING' || !slot.video) return;
+  const token = watchdogToken;
+  const videoId = slot.video.id;
   startWatchdog = setTimeout(() => {
-    // Never started: unavailable, region-blocked, or embedding refused.
+    if (token !== watchdogToken || slot !== front || slot.video?.id !== videoId || slot.playerState === 'PLAYING') return;
     void goNext();
   }, START_TIMEOUT_MS);
 }
@@ -230,6 +311,9 @@ async function preloadNext() {
   if (back.video && back.video.id === upcoming.id) return;
   try {
     await mount(back, upcoming, false);
+    if (!(await waitForSlotReady(back))) throw new Error('next player readiness timeout');
+    back.primePromise = primeSlot(back);
+    if (!(await back.primePromise)) throw new Error('next prime failed');
   } catch {
     clearSlot(back);
   }
@@ -250,84 +334,140 @@ async function showFirst() {
   trace('video-selected', video.id);
   reportPlayback(video, 'impression');
   await mount(front, video, true);
+  front.pane.classList.add('on');
   if (video.source === 'demo') curtain.classList.add('gone');
   else armStartWatchdog();
   void preloadNext();
 }
 
+function waitForSlotReady(slot, timeoutMs = 8000) {
+  if (slot.ready) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const check = () => { if (slot.ready) return resolve(true); if (performance.now() - started >= timeoutMs) return resolve(false); requestAnimationFrame(check); };
+    check();
+  });
+}
+function waitForSlotPlaying(slot, timeoutMs = 2500) {
+  if (slot.playing) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const check = () => { if (slot.playing) return resolve(true); if (performance.now() - started >= timeoutMs) return resolve(false); requestAnimationFrame(check); };
+    check();
+  });
+}
+async function primeSlot(slot) {
+  if (slot.primed && slot.playerState === 'PAUSED') return true;
+  slot.phase = 'priming';
+  try {
+    commandMute(slot, true);
+    if (slot.kind === 'yt' && slot.player) { tracePlayerCommand('play-command', slot); slot.player.playVideo(); }
+    else { const media = slot.pane.querySelector('video'); if (media) { media.muted = true; await media.play(); } }
+  } catch { return false; }
+  const ready = await waitForSlotPlaying(slot);
+  if (!ready || slot.playerState !== 'PLAYING') return false;
+  await nextAnimationFrame(); await nextAnimationFrame();
+  if (slot.playerState !== 'PLAYING') return false;
+  trace('incoming-frame-stable', slot.video?.id);
+  try {
+    if (slot.kind === 'yt' && slot.player) { slot.player.pauseVideo(); tracePlayerCommand('pause-command', slot); }
+    else slot.pane.querySelector('video')?.pause();
+  } catch { return false; }
+  slot.primed = true;
+  slot.phase = 'primed';
+  return true;
+}
+async function activateIncoming(slot) {
+  if (!slot.primed) return false;
+  slot.phase = 'playing';
+  commandMute(slot, true);
+  try { if (slot.kind === 'yt' && slot.player) { tracePlayerCommand('play-command', slot); slot.player.playVideo(); } else await slot.pane.querySelector('video')?.play(); } catch { return false; }
+  const playing = await waitForSlotPlaying(slot, 100);
+  // A primed iframe already has a compositor-ready frame. If YouTube reports
+  // BUFFERING while resuming, start the slide on that retained frame rather
+  // than reintroducing the old 600ms gesture-to-transition stall.
+  return playing || slot.primed;
+}
+
+/** Move two already-mounted panes as one compositor transition. */
+const VIDEO_TRANSITION_MS = 320;
+const VIDEO_TRANSITION_EASING = 'cubic-bezier(.22, 1, .36, 1)';
+let videoTransitioning = false;
+function reducedVideoMotion() { return document.body.classList.contains('reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+async function slidePanes(incoming, outgoing, direction) {
+  trace('transition-start', incoming.video?.id, { direction });
+  incoming.pane.classList.add('on'); outgoing.pane.classList.remove('on');
+  incoming.pane.style.transition = 'none'; outgoing.pane.style.transition = 'none';
+  if (reducedVideoMotion()) { trace('transition-complete', incoming.video?.id, { direction, reducedMotion: true }); incoming.pane.style.transform = ''; outgoing.pane.style.transform = ''; return; }
+  const sign = direction === 'next' ? -1 : 1;
+  const incomingAnimation = incoming.pane.animate([{ transform: `translate3d(0, ${-sign * 100}%, 0)` }, { transform: 'translate3d(0, 0, 0)' }], { duration: VIDEO_TRANSITION_MS, easing: VIDEO_TRANSITION_EASING, fill: 'both' });
+  const outgoingAnimation = outgoing.pane.animate([{ transform: 'translate3d(0, 0, 0)' }, { transform: `translate3d(0, ${sign * 100}%, 0)` }], { duration: VIDEO_TRANSITION_MS, easing: VIDEO_TRANSITION_EASING, fill: 'both' });
+  await Promise.all([incomingAnimation.finished, outgoingAnimation.finished]);
+  trace('transition-complete', incoming.video?.id, { direction });
+  incomingAnimation.cancel(); outgoingAnimation.cancel(); incoming.pane.style.transform = ''; outgoing.pane.style.transform = '';
+  incoming.pane.style.transition = ''; outgoing.pane.style.transition = '';
+}
+async function promoteMounted(direction) {
+  const outgoing = front; const incoming = back;
+  try { if (outgoing.kind === 'yt' && outgoing.player) outgoing.player.pauseVideo(); else outgoing.pane.querySelector('video')?.pause(); } catch { /* outgoing may have just ended */ }
+  front = incoming; back = outgoing;
+  try {
+    await slidePanes(front, back, direction);
+  } finally {
+    clearSlot(back); front.pane.classList.add('on');
+  }
+  // Keep the incoming player muted throughout the slide; restore user audio
+  // only once the new pane is fully visible.
+  applyMuteTo(front);
+  activatePlayingFront(front);
+}
+
 /** Promote the preloaded slot, or mount fresh if nothing was staged. */
 async function goNext() {
   if (switching) return;
-  switching = true;
-  clearStartWatchdog();
-  nextBtn.disabled = true;
-
+  switching = true; videoTransitioning = true; clearStartWatchdog(); nextBtn.disabled = true;
+  const previousCurrent = currentVideo;
   try {
     if (currentVideo) reportPlayback(currentVideo, Date.now() - currentStartedAt < 3000 ? 'quick' : 'normal');
-    const previousId = currentVideo?.id;
-    const video = await window.feed.next();
-    feedDebug('next', { previousId, videoId: video?.id, reason: 'gesture-or-ended' });
-    trace('video-skipped', video?.id, { previousId, reason: 'next-action' });
-    const status = await window.feed.status();
-    if (!video) {
-      renderMeta(null, status);
-      return;
-    }
-    renderMeta(video, status);
-    reportPlayback(video, 'impression');
-    trace('video-selected', video.id);
-
-    if (back.video && back.video.id === video.id && back.kind) {
-      // Already staged — swap panes and press play. This is the fast path.
-      const t = front;
-      front = back;
-      back = t;
-      front.pane.classList.add('on');
-      back.pane.classList.remove('on');
-      applyMuteTo(front);
-      if (front.kind === 'yt' && front.player) front.player.playVideo();
-      else front.pane.querySelector('video')?.play().catch(() => {});
-      clearSlot(back);
-    } else {
-      await mount(front, video, true);
-      front.pane.classList.add('on');
-    }
-
-    if (video.source === 'demo') curtain.classList.add('gone');
-    else armStartWatchdog();
-    void preloadNext();
-  } catch {
-    /* a failed advance must not wedge the button */
-  } finally {
-    switching = false;
-    nextBtn.disabled = false;
-  }
+    const previousId = currentVideo?.id; const video = await window.feed.next();
+    feedDebug('next', { previousId, videoId: video?.id, reason: 'gesture-or-ended' }); trace('video-skipped', video?.id, { previousId, reason: 'next-action' });
+    const status = await window.feed.status(); if (!video) { renderMeta(null, status); return; }
+    renderMeta(video, status); reportPlayback(video, 'impression'); trace('video-selected', video.id);
+    if (!(back.video && back.video.id === video.id && back.kind && back.ready)) await mount(back, video, false);
+    if (!(await waitForSlotReady(back))) { clearSlot(back); return; }
+    if (back.primePromise) await back.primePromise;
+    if (!back.primed && !(await primeSlot(back))) { clearSlot(back); await window.feed.previous(); if (previousCurrent) renderMeta(previousCurrent, status); return; }
+    if (!(await activateIncoming(back))) { clearSlot(back); await window.feed.previous(); if (previousCurrent) renderMeta(previousCurrent, status); return; }
+    await promoteMounted('next'); if (video.source !== 'demo') armStartWatchdog(); else curtain.classList.add('gone'); void preloadNext();
+  } catch { /* a failed advance must not wedge the button */ }
+  finally { videoTransitioning = false; switching = false; nextBtn.disabled = false; }
 }
 
 /** One step back through what has already been shown. */
 async function goPrev() {
-  if (switching) return;
-  const video = await window.feed.previous();
-  if (!video) return; // already at the oldest — nothing to go back to
-  switching = true;
-  clearStartWatchdog();
+  if (switching) return; switching = true; videoTransitioning = true; clearStartWatchdog();
+  let advanced = false;
+  const previousCurrent = currentVideo;
   try {
-    const status = await window.feed.status();
-    renderMeta(video, status);
-    // No fast path here: the staged slide always holds the *next* clip.
-    await mount(front, video, true);
-    front.pane.classList.add('on');
-    if (video.source === 'demo') curtain.classList.add('gone');
-    else armStartWatchdog();
-    void preloadNext();
+    const video = await window.feed.previous(); if (!video) return; advanced = true;
+    const status = await window.feed.status(); renderMeta(video, status); trace('video-selected', video.id);
+    await mount(back, video, false);
+    if (!(await waitForSlotReady(back))) throw new Error('previous player readiness timeout');
+    if (back.primePromise) await back.primePromise;
+    if (!back.primed && !(await primeSlot(back))) throw new Error('previous player prewarm timeout');
+    if (!(await activateIncoming(back))) throw new Error('previous player activation timeout');
+    await promoteMounted('previous');
+    reportPlayback(video, 'impression');
+    if (video.source !== 'demo') armStartWatchdog(); else curtain.classList.add('gone'); void preloadNext();
   } catch {
-    /* a failed step back must not wedge the gesture */
-  } finally {
-    switching = false;
+    if (advanced) { try { await window.feed.next(); } catch { /* best effort cursor rollback */ } }
+    clearSlot(back);
+    if (previousCurrent) { const status = await window.feed.status(); renderMeta(previousCurrent, status); }
   }
+  finally { videoTransitioning = false; switching = false; }
 }
 
-nextBtn.addEventListener('click', () => void goNext());
+if (!NATIVE_SCROLL_ENABLED) nextBtn.addEventListener('click', () => void goNext());
 closeBtn.addEventListener('click', () => window.feed.close());
 
 // ── the agent's status ─────────────────────────────────────────────────────
@@ -361,11 +501,15 @@ function stopTicker() {
 window.feed.onSettings((s) => {
   if (s && typeof s.debugFeed === 'boolean') FEED_DEBUG = s.debugFeed;
   if (s && typeof s.e2e === 'boolean') window.__FOCUSREELS_E2E__ = s.e2e;
+  if (s && typeof s.hardwareWheelCapture === 'boolean') hardwareWheelCapture = s.hardwareWheelCapture;
   if (s && typeof s.failIds === 'string') window.__FOCUSREELS_YOUTUBE_FAIL_IDS__ = s.failIds;
   if (s && typeof s.failCode === 'number') window.__FOCUSREELS_YOUTUBE_FAIL_CODE__ = s.failCode;
   if (s && typeof s.traceStages === 'boolean') traceStages = s.traceStages;
   if (s && typeof s.scrollToChange === 'boolean') {
     document.body.classList.toggle('scroll-gesture', s.scrollToChange);
+  }
+  if (NATIVE_SCROLL_ENABLED && s && typeof s.muted === 'boolean') {
+    window.FocusReelsNativeFeed?.setMuted(s.muted);
   }
   if (s && typeof s.muted === 'boolean' && s.muted !== muted) {
     muted = s.muted;
@@ -378,6 +522,10 @@ window.feed.onSettings((s) => {
 window.feed.onShow((status) => {
   renderStatus(status);
   startTicker();
+  if (NATIVE_SCROLL_ENABLED) {
+    void window.FocusReelsNativeFeed?.show(status);
+    return;
+  }
   void showFirst();
 });
 
@@ -386,6 +534,10 @@ window.feed.onStatus(renderStatus);
 window.feed.onHide(() => {
   stopTicker();
   clearStartWatchdog();
+  if (NATIVE_SCROLL_ENABLED) {
+    window.FocusReelsNativeFeed?.hide();
+    return;
+  }
   // Pause rather than tear down: the next turn should start instantly.
   if (front.kind === 'yt' && front.player) {
     try {
@@ -398,8 +550,19 @@ window.feed.onHide(() => {
 });
 
 window.feed.onCommand(async (command) => {
-  if (command === 'next') await goNext();
+  if (hardwareWheelCapture && command.startsWith('wheel-capture-marker:')) {
+    hardwareWheelMarker = command.slice('wheel-capture-marker:'.length) || null;
+    return;
+  }
+  if (command === 'next') {
+    if (NATIVE_SCROLL_ENABLED) window.FocusReelsNativeFeed?.next();
+    else await goNext();
+  }
   if (command === 'refresh') {
+    if (NATIVE_SCROLL_ENABLED) {
+      await window.FocusReelsNativeFeed?.show(null);
+      return;
+    }
     clearSlot(back);
     clearSlot(front);
     front.pane.classList.add('on');
@@ -422,6 +585,7 @@ let mode = 'expanded';
 let wasPlaying = false;
 
 function isPlaying() {
+  if (NATIVE_SCROLL_ENABLED) return Boolean(window.FocusReelsNativeFeed?.isPlaying());
   if (front.kind === 'yt' && front.player && typeof front.player.getPlayerState === 'function') {
     try {
       return front.player.getPlayerState() === 1; // YT.PlayerState.PLAYING
@@ -434,6 +598,7 @@ function isPlaying() {
 }
 
 function pauseFront() {
+  if (NATIVE_SCROLL_ENABLED) { window.FocusReelsNativeFeed?.pause(); return; }
   if (front.kind === 'yt' && front.player) {
     try {
       front.player.pauseVideo();
@@ -445,6 +610,7 @@ function pauseFront() {
 }
 
 function resumeFront() {
+  if (NATIVE_SCROLL_ENABLED) { window.FocusReelsNativeFeed?.resume(); return; }
   if (front.kind === 'yt' && front.player) {
     try {
       // playVideo() resumes at the retained position; it never reloads.
@@ -737,7 +903,9 @@ function setSurface(x, y) {
 }
 
 function surfaceSize() {
-  return mode === 'collapsed' ? { width: 56, height: 56 } : { width: 326, height: 720 };
+  return mode === 'collapsed' ? { width: 56, height: 56 } : {
+    width: 326, height: NATIVE_SCROLL_ENABLED ? 708 : 720,
+  };
 }
 
 function stopStageSpring() {
@@ -867,7 +1035,9 @@ function endGesture(event) {
   });
 }
 
-for (const handle of [fab, document.getElementById('chrome')]) {
+const dragHandles = [fab, document.getElementById('chrome')];
+if (NATIVE_SCROLL_ENABLED) dragHandles.push(document.getElementById('nativeDragHandle'));
+for (const handle of dragHandles.filter(Boolean)) {
   handle.addEventListener('pointerdown', (event) => {
     // Controls inside the strip are not drag handles — but the pill *is* a
     // button, so the guard only applies to the strip.
@@ -925,39 +1095,36 @@ window.overlay.getState().then((state) => {
 });
 
 // ── scroll to change clip ──────────────────────────────────────────────────
-//
-// The wheel cannot be read over a cross-origin player, so #wheelCatcher sits on
-// top of the video (but not over YouTube's own control bar) purely to receive
-// it. Trackpad and mouse both arrive here as wheel events.
-
-const WHEEL_THRESHOLD = 40;
-const WHEEL_COOLDOWN_MS = 420;
-
-let wheelAccum = 0;
-let wheelLock = 0;
-
-wheelCatcher.addEventListener(
-  'wheel',
-  (event) => {
-    event.preventDefault();
-    if (mode !== 'expanded' || switching) return;
-
-    const now = Date.now();
-    if (now < wheelLock) return;
-
-    // Reverse of a pending nudge cancels it, so a wobbly gesture does nothing.
-    if (Math.sign(event.deltaY) !== Math.sign(wheelAccum)) wheelAccum = 0;
-    wheelAccum += event.deltaY;
-    if (Math.abs(wheelAccum) < WHEEL_THRESHOLD) return;
-
-    const forward = wheelAccum > 0;
-    wheelAccum = 0;
-    // One clip per gesture: a trackpad flick emits dozens of events.
-    wheelLock = now + WHEEL_COOLDOWN_MS;
-    void (forward ? goNext() : goPrev());
-  },
-  { passive: false },
-);
+// The catcher receives wheel events above the cross-origin player. Recognition
+// is stateful: a commit locks until the real stream of events goes quiet.
+const wheelRecognizer = NATIVE_SCROLL_ENABLED ? null : new window.WheelGesture.WheelGestureRecognizer();
+let wheelQuietTimer = null; let wheelGestureStarted = false;
+function endWheelGesture() {
+  wheelQuietTimer = null;
+  if (videoTransitioning || switching) { armWheelQuietTimer(); return; }
+  if (wheelRecognizer.endIfQuiet(performance.now())) { if (wheelGestureStarted) trace('gesture-end'); wheelGestureStarted = false; }
+ }
+function armWheelQuietTimer() { if (wheelQuietTimer !== null) clearTimeout(wheelQuietTimer); wheelQuietTimer = setTimeout(endWheelGesture, window.WheelGesture.WHEEL_QUIET_PERIOD_MS + 8); }
+function videoReadyForGesture() { return Boolean(front.video && front.ready && curtain.classList.contains('gone')); }
+if (!NATIVE_SCROLL_ENABLED) wheelCatcher.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  const now = performance.now();
+  const normalized = window.WheelGesture.normalizeWheelDelta(event, event.viewportHeight || window.innerHeight);
+  const before = wheelRecognizerSnapshot();
+  const gapMs = before.state === 'idle' || wheelRecognizer.lastEventAt === 0 ? null : now - wheelRecognizer.lastEventAt;
+  const transitionState = { switching, videoTransitioning, mode, dragging: Boolean(gesture), snapping: stageRaf !== null, morphing: Boolean(morphPlan) };
+  if (mode !== 'expanded' || gesture || stageRaf !== null || morphPlan) {
+    captureHardwareWheel({ marker: hardwareWheelMarker, timestamp: now, gapMs, deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode, normalized, before, after: before, holdLock: switching || videoTransitioning, resultType: 'ignored', resultReason: 'overlay-blocked', transitionState, currentVideoId: currentVideo?.id });
+    return;
+  }
+  const blocked = switching || videoTransitioning || !videoReadyForGesture();
+  const holdLock = switching || videoTransitioning;
+  const result = wheelRecognizer.handle(event, now, { holdLock });
+  captureHardwareWheel({ marker: hardwareWheelMarker, timestamp: now, gapMs, deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode, normalized, before, after: wheelRecognizerSnapshot(), holdLock, resultType: result.type, resultReason: result.reason, commitDirection: result.type === 'commit' ? result.direction : undefined, transitionState, currentVideoId: currentVideo?.id });
+  armWheelQuietTimer();
+  if (result.type === 'tracking' && !wheelGestureStarted) { wheelGestureStarted = true; trace('gesture-start'); }
+  if (result.type === 'commit' && !blocked) { wheelGestureStarted = true; trace('gesture-commit', undefined, { direction: result.direction }); void (result.direction === 'next' ? goNext() : goPrev()); }
+}, { passive: false });
 
 // The layer covers the video, so a click on it has to do what a click on the
 // player would: toggle playback.
