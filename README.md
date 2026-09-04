@@ -42,20 +42,22 @@ An adapter may send exactly this, and nothing else:
 
 ## The YouTube feed
 
-**You do not need an API key.** The app fetches a catalog that is rebuilt daily
-by [a GitHub Action](.github/workflows/youtube-catalog.yml) and published to
-GitHub Pages, so a fresh install has something to watch on its first turn.
+**You do not need an API key.** FocusReels starts with the bundled reviewed
+catalog and asynchronously fetches the published catalog from GitHub Pages. A
+successful remote result is cached with an ETag. If a remote response fails, is
+malformed, or times out, the current bundled or cached catalog remains active.
+A [GitHub Action](.github/workflows/youtube-catalog.yml) rebuilds the published
+catalog daily.
 
     https://dzndorosh.github.io/focusreels/catalog/youtube-catalog.json
 
-If that fetch fails — you are offline, or Pages is down — the app falls back to
-the catalog bundled in this repository, and then to your own local clips.
+### Maintainer API key and desktop privacy
 
-### Where the maintainer key lives, and why it cannot leak
-
-You do not configure a key in the desktop app. `YOUTUBE_API_KEY` is used only
-by the maintainer's catalog-collection commands and the GitHub Actions secret;
-the installed app receives only the finished public catalog.
+YOUTUBE_API_KEY is used only by maintainer catalog-collection commands and the
+GitHub Actions workflow. The installed app does not call the YouTube Data API;
+it receives only the finished public catalog. The player receives reviewed
+catalog IDs and categories, never IDE prompts, code, files, project names, or a
+maintainer key.
 
 - The renderer's entire view of the world is `window.feed` from a
   `contextBridge` preload: `next`, `peek`, `refresh`, `status`, `close`,
@@ -65,38 +67,23 @@ the installed app receives only the finished public catalog.
 - `npm run build` runs `scripts/check-no-key.mjs`, which scans renderer assets
   for the configured key and anything shaped like a Google key.
 
-### How a queue is built
+### How playback selection works
 
-1. Two of the five built-in queries (`funny shorts`, `gaming shorts`,
-   `satisfying shorts`, `memes shorts`, `tech shorts`), picked at random.
-   **Two, not five** — `search.list` costs 100 quota units against a 10,000/day
-   default, while `videos.list` costs 1.
-2. The regional `mostPopular` chart for your `regionCode`.
-3. `videos.list` with `snippet,contentDetails,status,liveStreamingDetails` for
-   the real details.
-4. Keep only what is playable: **public**, `status.embeddable === true`,
-   **≤ 180 s**, not a live stream (checked two ways, since either signal can be
-   absent), and not already shown this session.
-5. Mix **70% search / 30% popular**. If one side is thin the other backfills — an
-   exact ratio is worth less than a queue that is long enough.
-6. No more than **two videos from one channel in a row**.
-7. Shuffle, and hand the player at least 10.
-8. Cache the raw result for **30 minutes** on disk, so a restart is instant and
-   the quota lasts.
-9. Refill in the background when the queue drops to three, so it never runs dry.
+The catalog collector, not the desktop app, validates public, embeddable,
+non-live videos with a short duration and a reviewed source allowlist. At
+runtime, CatalogProvider ranks enabled catalog entries using session history,
+broken-video reports, and locally persisted feedback. It skips videos already
+seen in the current lap and cycles only after eligible entries are exhausted.
 
-Everything in steps 4–7 is pure and tested (`tests/feed.test.ts`,
-`tests/feedService.test.ts`) rather than eyeballed.
+The runtime feed is covered by the catalog and catalog-provider tests.
+Maintainer collection and publication are documented in
+[the catalog automation guide](docs/youtube-catalog-automation.md).
 
-### Demo mode
+### When no catalog video is playable
 
-If the API fails — no key, quota gone, offline — the feed falls back to **your
-own local clips** and shows a quiet `Demo mode · <reason>` chip in the control
-area.
-
-The fallback is deliberately *not* a hardcoded list of YouTube ids: third-party
-ids rot, get taken down, or turn non-embeddable, so that fallback would fail
-exactly when it is needed.
+If no eligible catalog entry is available, the YouTube player shows its
+empty-feed state. It does not silently switch to local clips. Local clips are a
+separately selected player mode.
 
 ### The player window
 
@@ -108,8 +95,9 @@ exactly when it is needed.
 - **Nothing of ours is drawn on top of the player.** Next, Mute and Close live in
   a control area *below* it, along with the title, the channel, and the turn
   status.
-- Two stacked player instances: the next clip is cued in the hidden one, so
-  advancing is a swap rather than a load.
+- The renderer maintains front and back playback panes so an advance can hand
+  off without rebuilding the visible window. This is catalog playback, not a
+  per-user YouTube API queue.
 - A clip that ends advances automatically. One that is unavailable, refuses
   embedding, or simply never starts within 6 s is skipped.
 - The window appears with `showInactive()`, so it never steals focus from the
@@ -395,9 +383,13 @@ window.
 ### Tests
 
 ```bash
-npm test         # 124 tests: state machine, registry, events, broker, settings, feed, anchors, springs
+npm test         # current Vitest suite; do not rely on a hard-coded count
 npm run typecheck
 ```
+
+The suite covers core turn logic, event/broker sanitization, source
+policy/settings, catalog behaviour, geometry, adapters and package
+configuration.
 
 ### Build a macOS app and DMG
 
@@ -501,7 +493,7 @@ directly and pick **Reload settings from disk**.
 | `clickThrough` | `true` | overlay is invisible to mouse and keyboard |
 | `swipe` | `true` | swipe/scroll to change clip; costs click-through while hovering |
 | `player` | `youtube` | `youtube` (326×720 feed) or `local` (small overlay) |
-| `regionCode` | `US` | ISO-3166-1 alpha-2, for the regional `mostPopular` chart |
+| `regionCode` | `US` | ISO-3166-1 alpha-2 retained for catalog/source-policy compatibility; current runtime does not query regional `mostPopular` |
 | `placement` | `middle-right`, expanded | the feed window's anchor, mode and display |
 | `scrollToChange` | `true` | scroll over the video to change clip; adds a capture layer |
 | `corner` | `bottom-right` | which corner, on the display holding the cursor |
@@ -591,14 +583,15 @@ opt-in.
 - **The Accessibility adapter is heuristic.** It reads the chat's Stop/Send
   controls, so a JetBrains UI change or a localized IDE can need a pattern
   update. Prefer hooks wherever they exist.
-- **The feed is not personalised, by design.** Five fixed queries plus the
-  regional chart; no sign-in, no channel picking, no recommendations.
-- **Quota is finite.** Two searches per refresh and a 30-minute cache keep a
-  default 10,000-unit day comfortable, but a very long session will eventually
-  exhaust it and drop to Demo mode.
-- **No packaging yet.** `npm start` runs it from source; there is no signed
-  `.app`, no auto-launch, no notarization.
-- **No playlist UI.** Clips are whatever is in the media folder.
+- **The feed is a reviewed public catalog, not a personalised recommendation
+  service.** There is no sign-in, channel picker, or per-user YouTube Data API
+  request. Freshness depends on scheduled catalog publication; bundled or
+  cached data remains available while remote publication is unavailable.
+- **The arm64 DMG is unsigned and unnotarized.** It is appropriate for
+  development/testing until Developer ID signing and notarization are
+  configured.
+- **Local clips are a separate player mode.** They are not a fallback when the
+  YouTube catalog has no playable video.
 
 ---
 

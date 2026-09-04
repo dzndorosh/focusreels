@@ -1,5 +1,10 @@
 # Automated YouTube catalog
 
+These maintainer commands create the published catalog; they are never run by
+the desktop app. `config/youtube-catalog.json` and the payloads under
+`public/catalog/` are intentional generated deployment outputs, not
+per-user runtime collection artifacts.
+
 The desktop app contains no YouTube API key. A maintainer creates `config/youtube-sources.json` with manually reviewed `UC...` channel IDs, category, weight and per-channel limit. Keep the example allowlist empty until channels have been reviewed.
 
 For the initial bootstrap, set `YOUTUBE_API_KEY` only in the maintainer shell and run `npm run catalog:youtube:seed`. It performs one batched `videos.list` request for the eight known smoke-test IDs and writes `artifacts/youtube-catalog/seed-channels.json` plus disabled `config/youtube-sources.candidates.json`. Review recent uploads in `public/catalog/review.html`; only then copy approved channels into the active allowlist.

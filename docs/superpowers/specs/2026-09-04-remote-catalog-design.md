@@ -1,7 +1,13 @@
 # Remote catalog: a first run that works without an API key
 
-**Status:** design, approved for planning
+**Status:** implemented on main (commits 241fb5a through 282ea56)
 **Scope:** subsystem A of the packaging effort (A: catalog without a key → B: adapter install without Node → C: `.app` and DMG)
+
+**Outcome:** Catalog URL selection, remote refresh, cache/ETag handling, tray
+status, the Pages publication workflow, adapter installation, and arm64 DMG
+packaging are implemented. GitHub Pages, the maintainer secret, and the
+publication variable are repository settings outside Git and remain unverified
+here.
 
 ## Problem
 
@@ -103,10 +109,10 @@ deliberate opt-out would silently disable the feed.
 
 The tray's feed line becomes, in order of what it knows:
 
-- `Feed: 412 of 448 · published 6h ago` when the catalog came from `remote`
-- `Feed: 412 of 448 · bundled snapshot` for any local source (`cache`,
-  `development-file`, `fixture`, `environment`)
-- `Demo mode · <reason>` unchanged when `demoMode` is set
+- Feed: <playable> of <total> · published <age> when the catalog came from remote
+- Feed: <playable> of <total> · bundled snapshot for any local source (cache,
+  development-file, fixture, environment)
+- an empty-feed status when no eligible catalog entry is available
 
 The age comes from the catalog's own `generatedAt`, which every catalog carries
 and which `status` must therefore start exposing as `generatedAt`.
@@ -139,10 +145,10 @@ fetches a finished JSON file.
 
 | Situation | What the user gets |
 |---|---|
-| Offline, or Pages down | The bundled 448-video catalog. `refreshRemote` times out at 4 s and returns false; the runtime catalog is untouched. |
+| Offline, or Pages down | The bundled catalog snapshot. `refreshRemote` times out at 4 s and returns false; the runtime catalog is untouched. |
 | Catalog fetched once, then offline | The atomic on-disk cache from the last fetch. |
 | Published catalog is malformed | `fetchRemoteCatalog` rejects it and returns no catalog; the previous one stands. |
-| Every video in the catalog is dead | Playable count drops to zero and the app falls to Demo mode with its existing reason string. The daily refresh is what stops this accumulating. |
+| Every video in the catalog is dead | Playable count drops to zero and the app shows its empty-feed state. The daily refresh is what stops this accumulating. |
 | Developer needs a different catalog | Set `FOCUSREELS_REMOTE_CATALOG_URL` to an HTTPS published catalog. |
 
 ## Testing

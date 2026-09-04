@@ -1,12 +1,20 @@
 # Open Adapter Protocol Implementation Plan
 
+> **Outcome:** Implemented on main in commits 928cb16 through 6dba339. The
+> resulting public contract is
+> [docs/ADAPTER-PROTOCOL.md](../../ADAPTER-PROTOCOL.md), with coverage in core,
+> settings, source-registry and CLI tests. The unchecked procedure boxes below
+> are historical execution notes, not remaining work.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let any tool drive FocusReels by writing one line of JSON to the socket, with a declared confidence level, without changing this codebase.
 
 **Architecture:** `source` stops being a closed TypeScript union and becomes a narrowly-shaped open string. A new `SourceRegistry` in `src/core` decides whether a source may open turns — admitting an `exact` source enabled and a `heuristic` source disabled — and holds per-source liveness counters in memory. `settings.json` stores only the policy (`sources`), migrated from the old `enabledSources`.
 
-**Tech Stack:** TypeScript (ESM, `nodenext`), Electron 30 main process, vitest. No new dependencies.
+**Tech Stack:** Historical baseline: TypeScript (ESM, `nodenext`), Electron
+30 main process, vitest. Consult the current tsconfig and package manifest for
+the active project configuration.
 
 **Spec:** `docs/superpowers/specs/2026-09-04-open-adapter-protocol-design.md`
 

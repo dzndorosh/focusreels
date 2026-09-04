@@ -1,7 +1,12 @@
 # Open adapter protocol
 
-**Status:** design, approved for planning
+**Status:** implemented on main (commits 928cb16 through 6dba339)
 **Scope:** subsystem 1 of 4 (open protocol → diagnostics → universal CLI sensor → native/web)
+
+**Outcome:** The implemented subsystem is represented by events, source registry,
+turn registry, settings, tray, CLI emitter, and
+[docs/ADAPTER-PROTOCOL.md](../../ADAPTER-PROTOCOL.md). Later subsystems named in
+the scope are not implied to be complete.
 
 ## Problem
 

@@ -1,3 +1,9 @@
+# Historical snapshot — superseded by [AUDIT_REPORT.md](../../../AUDIT_REPORT.md)
+
+This 2026-09-02 audit is preserved as historical evidence. Its implementation
+claims are not the current source of truth; use AUDIT_REPORT.md for the current
+audit.
+
 # FocusReels codebase audit
 
 Audit baseline: 2026-09-02. Before cleanup, `npm test -- --run` passed 132 tests in
